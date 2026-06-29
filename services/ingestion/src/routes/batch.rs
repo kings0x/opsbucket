@@ -10,7 +10,6 @@ use opsbucket_shared::events::{AnyEvent, BatchPayload, RawEvent};
 use serde::Deserialize;
 use serde_json::json;
 
-use crate::auth::write_key;
 use crate::validation::{validate_batch, ValidationError};
 use crate::AppState;
 
@@ -106,15 +105,9 @@ pub async fn post_batch(
         }
     }
 
-    let project_id = match write_key::validate_write_key(
-        &write_key_str,
-        &state.redis,
-        &state.pg,
-    )
-    .await
-    {
-        Ok(Some(pid)) => pid,
-        _ => {
+    let project_id = match state.auth.validate(&write_key_str).await {
+        Some(pid) => pid,
+        None => {
             return (
                 StatusCode::UNAUTHORIZED,
                 Json(json!({"error": "invalid_write_key"})),

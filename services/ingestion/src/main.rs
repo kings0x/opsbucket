@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use axum::extract::DefaultBodyLimit;
+use opsbucket_ingestion::auth::RedisPgAuth;
 use opsbucket_ingestion::kafka::producer::EventProducer;
 use opsbucket_ingestion::{rate_limiter::RateLimiter, AppState};
 
@@ -18,11 +19,13 @@ async fn main() -> anyhow::Result<()> {
         opsbucket_ingestion::kafka::producer::KafkaProducer::new(&std::env::var("KAFKA_BROKERS")?)?,
     );
 
+    let auth: Arc<dyn opsbucket_ingestion::auth::AuthValidator> =
+        Arc::new(RedisPgAuth::new(redis_client, pg_pool));
+
     let rate_limiter = RateLimiter::new(1000, 1000);
 
     let state = Arc::new(AppState {
-        redis: redis_client,
-        pg: pg_pool,
+        auth,
         kafka,
         rate_limiter: std::sync::Mutex::new(rate_limiter),
     });

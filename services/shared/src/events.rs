@@ -3,10 +3,9 @@ use serde::{Deserialize, Serialize};
 // ── SDK Event Types ──────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TrackEvent {
     pub message_id: String,
-    #[serde(rename = "type")]
-    pub event_type: String,
     pub anonymous_id: String,
     pub user_id: Option<String>,
     pub original_timestamp: String,
@@ -16,10 +15,9 @@ pub struct TrackEvent {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct IdentifyEvent {
     pub message_id: String,
-    #[serde(rename = "type")]
-    pub event_type: String,
     pub anonymous_id: String,
     pub user_id: String,
     pub original_timestamp: String,
@@ -28,10 +26,9 @@ pub struct IdentifyEvent {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PageEvent {
     pub message_id: String,
-    #[serde(rename = "type")]
-    pub event_type: String,
     pub anonymous_id: String,
     pub user_id: Option<String>,
     pub original_timestamp: String,
@@ -54,8 +51,8 @@ pub enum AnyEvent {
 // ── Wire Format ──────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct BatchPayload {
-    #[serde(rename = "sentAt")]
     pub sent_at: String,
     pub batch: Vec<AnyEvent>,
 }
@@ -63,11 +60,11 @@ pub struct BatchPayload {
 // ── Context (matches SDK 1:1) ────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Context {
     pub library: Library,
     pub page: Page,
     pub screen: Screen,
-    #[serde(rename = "userAgent")]
     pub user_agent: String,
     pub locale: String,
     pub timezone: String,
@@ -111,14 +108,12 @@ pub struct Campaign {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RawEvent {
-    // Server-stamped fields
     pub project_id: String,
     pub received_at: String,
     pub ip: String,
 
     // Event identity
     pub message_id: String,
-    #[serde(rename = "type")]
     pub event_type: String,
     pub anonymous_id: String,
     pub user_id: Option<String>,
@@ -139,15 +134,14 @@ pub struct RawEvent {
 }
 
 impl RawEvent {
-    /// Stamp an SDK event with server-side fields and return a RawEvent.
     pub fn from_any(event: AnyEvent, project_id: String, received_at: String, ip: String) -> Self {
         match event {
             AnyEvent::Track(e) => Self {
                 project_id,
                 received_at,
                 ip,
+                event_type: "track".to_string(),
                 message_id: e.message_id,
-                event_type: e.event_type,
                 anonymous_id: e.anonymous_id,
                 user_id: e.user_id,
                 original_timestamp: e.original_timestamp,
@@ -161,8 +155,8 @@ impl RawEvent {
                 project_id,
                 received_at,
                 ip,
+                event_type: "identify".to_string(),
                 message_id: e.message_id,
-                event_type: e.event_type,
                 anonymous_id: e.anonymous_id,
                 user_id: Some(e.user_id),
                 original_timestamp: e.original_timestamp,
@@ -176,8 +170,8 @@ impl RawEvent {
                 project_id,
                 received_at,
                 ip,
+                event_type: "page".to_string(),
                 message_id: e.message_id,
-                event_type: e.event_type,
                 anonymous_id: e.anonymous_id,
                 user_id: e.user_id,
                 original_timestamp: e.original_timestamp,

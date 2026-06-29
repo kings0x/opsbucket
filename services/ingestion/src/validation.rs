@@ -133,7 +133,6 @@ mod tests {
     fn valid_track() -> AnyEvent {
         AnyEvent::Track(TrackEvent {
             message_id: "msg-1".into(),
-            event_type: "track".into(),
             anonymous_id: "anon-1".into(),
             user_id: None,
             original_timestamp: "2026-06-29T10:00:00.000Z".into(),
@@ -146,7 +145,6 @@ mod tests {
     fn valid_identify() -> AnyEvent {
         AnyEvent::Identify(IdentifyEvent {
             message_id: "msg-2".into(),
-            event_type: "identify".into(),
             anonymous_id: "anon-2".into(),
             user_id: "user-1".into(),
             original_timestamp: "2026-06-29T10:00:00.000Z".into(),
@@ -158,7 +156,6 @@ mod tests {
     fn valid_page() -> AnyEvent {
         AnyEvent::Page(PageEvent {
             message_id: "msg-3".into(),
-            event_type: "page".into(),
             anonymous_id: "anon-3".into(),
             user_id: None,
             original_timestamp: "2026-06-29T10:00:00.000Z".into(),
@@ -266,7 +263,6 @@ mod tests {
     fn accepts_page_without_name() {
         let event = AnyEvent::Page(PageEvent {
             message_id: "msg-3".into(),
-            event_type: "page".into(),
             anonymous_id: "anon-3".into(),
             user_id: None,
             original_timestamp: "2026-06-29T10:00:00.000Z".into(),

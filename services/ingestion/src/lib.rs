@@ -6,11 +6,11 @@ pub mod validation;
 
 use std::sync::{Arc, Mutex};
 
+use auth::AuthValidator;
 use kafka::producer::EventProducer;
 
 pub struct AppState {
-    pub redis: redis::Client,
-    pub pg: sqlx::PgPool,
+    pub auth: Arc<dyn AuthValidator>,
     pub kafka: Arc<dyn EventProducer>,
     pub rate_limiter: Mutex<rate_limiter::RateLimiter>,
 }
