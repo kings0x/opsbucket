@@ -1,0 +1,9 @@
+[workspace]
+members = [
+    "shared",
+    "migrator",
+    "ingestion",
+    "processing",
+    "query",
+]
+resolver = "2"

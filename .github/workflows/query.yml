@@ -1,0 +1,25 @@
+name: Query
+
+on:
+  pull_request:
+    branches: [develop, main]
+    paths: ['services/query/**', 'services/shared/**']
+  push:
+    branches: [develop]
+    paths: ['services/query/**', 'services/shared/**']
+
+jobs:
+  lint-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - run: cargo build -p opsbucket-query
+      - run: cargo clippy -p opsbucket-query -- -D warnings
+      - run: cargo fmt --check
+      - run: cargo test -p opsbucket-query

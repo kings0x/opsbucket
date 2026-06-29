@@ -1,0 +1,36 @@
+services:
+  - type: web
+    name: ingestion
+    env: docker
+    repo: https://github.com/kings0x/opsbucket
+    branch: develop
+    dockerfilePath: ./services/ingestion/Dockerfile
+    autoDeploy: true
+    autoDeployTrigger: checksPass
+
+  - type: worker
+    name: processing
+    env: docker
+    repo: https://github.com/kings0x/opsbucket
+    branch: develop
+    dockerfilePath: ./services/processing/Dockerfile
+    autoDeploy: true
+    autoDeployTrigger: checksPass
+
+  - type: web
+    name: query
+    env: docker
+    repo: https://github.com/kings0x/opsbucket
+    branch: develop
+    dockerfilePath: ./services/query/Dockerfile
+    autoDeploy: true
+    autoDeployTrigger: checksPass
+
+  - type: worker
+    name: migrator
+    env: docker
+    repo: https://github.com/kings0x/opsbucket
+    branch: develop
+    dockerfilePath: ./services/migrator/Dockerfile
+    autoDeploy: true
+    autoDeployTrigger: checksPass
