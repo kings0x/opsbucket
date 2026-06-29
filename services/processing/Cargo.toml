@@ -7,8 +7,8 @@ edition = "2021"
 tokio = { version = "1", features = ["full"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-rdkafka = "0.36"
-clickhouse-rs = { version = "1", features = ["default"] }
+rdkafka = { version = "0.36", features = ["cmake-build"] }
+clickhouse = { version = "0.12", features = ["default"] }
 redis = { version = "0.25", features = ["tokio-comp"] }
 anyhow = "1"
 tracing = "0.1"

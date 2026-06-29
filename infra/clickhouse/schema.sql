@@ -32,4 +32,4 @@ CREATE TABLE IF NOT EXISTS events (
     context_ip String
 ) ENGINE = MergeTree()
 PARTITION BY toYYYYMM(timestamp)
-ORDER BY (project_id, timestamp, message_id);
+ORDER BY (project_id, event, timestamp);
