@@ -15,8 +15,8 @@ let transport: Transport
 let autocapture: Autocapture | null = null
 
 export function init(writeKey: string, options?: Partial<Config>): void {
-  storage = new Storage()
   const config: Config = { endpoint: 'https://ingest.opsbucket.io', ...options }
+  storage = new Storage(config)
 
   batcher = new Batcher(config, () => {
     const batch = batcher.drain()
@@ -28,7 +28,7 @@ export function init(writeKey: string, options?: Partial<Config>): void {
 
   if (config.autocapture !== false) {
     autocapture = new Autocapture()
-    autocapture.attach((event) => track(event, false))
+    autocapture.attach((event) => track(event))
   }
 }
 
