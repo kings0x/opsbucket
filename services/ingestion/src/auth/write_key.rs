@@ -42,7 +42,6 @@ pub async fn validate_write_key(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
 
     struct TestStore {
         redis_entries: std::sync::Mutex<std::collections::HashMap<String, String>>,
