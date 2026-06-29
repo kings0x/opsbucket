@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+use axum::extract::DefaultBodyLimit;
+use opsbucket_ingestion::kafka::producer::EventProducer;
 use opsbucket_ingestion::{rate_limiter::RateLimiter, AppState};
 
 #[tokio::main]
@@ -12,8 +14,9 @@ async fn main() -> anyhow::Result<()> {
 
     let redis_client = redis::Client::open(std::env::var("REDIS_URL")?)?;
 
-    let kafka =
-        opsbucket_ingestion::kafka::producer::KafkaProducer::new(&std::env::var("KAFKA_BROKERS")?)?;
+    let kafka: Arc<dyn EventProducer> = Arc::new(
+        opsbucket_ingestion::kafka::producer::KafkaProducer::new(&std::env::var("KAFKA_BROKERS")?)?,
+    );
 
     let rate_limiter = RateLimiter::new(1000, 1000);
 
@@ -33,6 +36,7 @@ async fn main() -> anyhow::Result<()> {
             "/health",
             axum::routing::get(opsbucket_ingestion::routes::health::get_health),
         )
+        .layer(DefaultBodyLimit::max(1_048_576))
         .with_state(state);
 
     let port = std::env::var("PORT").unwrap_or_else(|_| "8080".to_string());

@@ -51,12 +51,18 @@ pub struct MockProducer {
     pub fail_on_send: std::sync::Mutex<bool>,
 }
 
-impl MockProducer {
-    pub fn new() -> Self {
+impl Default for MockProducer {
+    fn default() -> Self {
         Self {
             messages: std::sync::Mutex::new(Vec::new()),
             fail_on_send: std::sync::Mutex::new(false),
         }
+    }
+}
+
+impl MockProducer {
+    pub fn new() -> Self {
+        Self::default()
     }
 }
 

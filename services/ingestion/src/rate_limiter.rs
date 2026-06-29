@@ -26,7 +26,7 @@ impl RateLimiter {
     pub fn check(&mut self, key: &str) -> bool {
         self.check_count += 1;
 
-        if self.check_count % 100 == 0 {
+        if self.check_count.is_multiple_of(100) {
             self.evict_stale();
         }
 
