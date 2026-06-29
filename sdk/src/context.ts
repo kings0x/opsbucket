@@ -2,18 +2,21 @@ import type { Context } from './types'
 
 export function buildContext(): Context {
   return {
-    library: { name: 'opsbucket-js', version: __SDK_VERSION__ },
+    library: {
+      name: 'opsbucket-js',
+      version: typeof __SDK_VERSION__ !== 'undefined' ? __SDK_VERSION__ : '0.0.0',
+    },
     page: {
       url: window.location.href,
       path: window.location.pathname,
-      referrer: document.referrer,
+      referrer: document.referrer || '',
       title: document.title,
       search: window.location.search,
     },
     screen: {
       width: window.screen.width,
       height: window.screen.height,
-      density: window.devicePixelRatio ?? 1,
+      density: window.devicePixelRatio || 1,
     },
     userAgent: navigator.userAgent,
     locale: navigator.language,
