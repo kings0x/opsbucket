@@ -1394,6 +1394,8 @@ dependencies = [
  "clap",
  "sqlx",
  "tokio",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

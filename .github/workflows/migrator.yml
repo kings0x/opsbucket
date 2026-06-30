@@ -1,0 +1,25 @@
+name: Migrator
+
+on:
+  pull_request:
+    branches: [develop, main]
+    paths: ['services/migrator/**', 'infra/postgres/**', '.github/workflows/migrator.yml']
+  push:
+    branches: [develop]
+    paths: ['services/migrator/**', 'infra/postgres/**', '.github/workflows/migrator.yml']
+
+jobs:
+  lint-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - run: cargo build -p opsbucket-migrator
+      - run: cargo clippy -p opsbucket-migrator -- -D warnings
+      - run: cargo fmt --check
+      - run: cargo test -p opsbucket-migrator
