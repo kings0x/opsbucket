@@ -44,7 +44,7 @@ fn extract_ip(headers: &HeaderMap) -> String {
     "0.0.0.0".to_string()
 }
 
-fn stamp_events(events: Vec<AnyEvent>, project_id: &str, ip: &str) -> Vec<RawEvent> {
+fn stamp_events(events: Vec<AnyEvent>, project_id: &str, sent_at: &str, ip: &str) -> Vec<RawEvent> {
     let received_at = Utc::now().to_rfc3339();
     events
         .into_iter()
@@ -53,6 +53,7 @@ fn stamp_events(events: Vec<AnyEvent>, project_id: &str, ip: &str) -> Vec<RawEve
                 e,
                 project_id.to_string(),
                 received_at.clone(),
+                sent_at.to_string(),
                 ip.to_string(),
             )
         })
@@ -134,7 +135,7 @@ pub async fn post_batch(
 
     let ip = extract_ip(&headers);
 
-    let raw_events = stamp_events(payload.batch, &project_id, &ip);
+    let raw_events = stamp_events(payload.batch, &project_id, &payload.sent_at, &ip);
 
     let ingested = raw_events.len();
 

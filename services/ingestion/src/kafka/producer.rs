@@ -115,6 +115,7 @@ mod tests {
         RawEvent {
             project_id: project_id.to_string(),
             received_at: "2026-06-29T10:00:00.000Z".to_string(),
+            sent_at: "2026-06-29T10:00:00.000Z".to_string(),
             ip: "127.0.0.1".to_string(),
             message_id: message_id.to_string(),
             event_type: "track".to_string(),

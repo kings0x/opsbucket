@@ -110,6 +110,7 @@ pub struct Campaign {
 pub struct RawEvent {
     pub project_id: String,
     pub received_at: String,
+    pub sent_at: String,
     pub ip: String,
 
     // Event identity
@@ -134,11 +135,18 @@ pub struct RawEvent {
 }
 
 impl RawEvent {
-    pub fn from_any(event: AnyEvent, project_id: String, received_at: String, ip: String) -> Self {
+    pub fn from_any(
+        event: AnyEvent,
+        project_id: String,
+        received_at: String,
+        sent_at: String,
+        ip: String,
+    ) -> Self {
         match event {
             AnyEvent::Track(e) => Self {
                 project_id,
                 received_at,
+                sent_at,
                 ip,
                 event_type: "track".to_string(),
                 message_id: e.message_id,
@@ -154,6 +162,7 @@ impl RawEvent {
             AnyEvent::Identify(e) => Self {
                 project_id,
                 received_at,
+                sent_at,
                 ip,
                 event_type: "identify".to_string(),
                 message_id: e.message_id,
@@ -169,6 +178,7 @@ impl RawEvent {
             AnyEvent::Page(e) => Self {
                 project_id,
                 received_at,
+                sent_at,
                 ip,
                 event_type: "page".to_string(),
                 message_id: e.message_id,
