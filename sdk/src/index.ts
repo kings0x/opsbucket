@@ -1,4 +1,4 @@
-import type { TrackEvent, IdentifyEvent, PageEvent, BatchPayload, Context } from './types'
+import type { TrackEvent, IdentifyEvent, PageEvent } from './types'
 import type { Config } from './storage'
 import { Storage } from './storage'
 import { Batcher } from './batcher'

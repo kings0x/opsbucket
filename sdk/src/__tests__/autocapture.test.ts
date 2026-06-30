@@ -18,12 +18,15 @@ describe('Autocapture', () => {
     it('emits Page Viewed on attach', () => {
       autocapture.attach(emit)
 
-      expect(emit).toHaveBeenCalledWith('Page Viewed', expect.objectContaining({
-        url: expect.any(String),
-        path: expect.any(String),
-        title: expect.any(String),
-        referrer: expect.any(String),
-      }))
+      expect(emit).toHaveBeenCalledWith(
+        'Page Viewed',
+        expect.objectContaining({
+          url: expect.any(String),
+          path: expect.any(String),
+          title: expect.any(String),
+          referrer: expect.any(String),
+        }),
+      )
     })
 
     it('emits Page Viewed on popstate', () => {
@@ -66,11 +69,14 @@ describe('Autocapture', () => {
       button.click()
       document.body.removeChild(button)
 
-      expect(emit).toHaveBeenCalledWith('Element Clicked', expect.objectContaining({
-        tag: 'button',
-        id: 'submit-btn',
-        text: 'Click me',
-      }))
+      expect(emit).toHaveBeenCalledWith(
+        'Element Clicked',
+        expect.objectContaining({
+          tag: 'button',
+          id: 'submit-btn',
+          text: 'Click me',
+        }),
+      )
     })
 
     it('includes tag name, id, class, and href on anchor click', () => {
@@ -106,9 +112,12 @@ describe('Autocapture', () => {
       long.click()
       document.body.removeChild(long)
 
-      expect(emit).toHaveBeenCalledWith('Element Clicked', expect.objectContaining({
-        text: 'A'.repeat(64),
-      }))
+      expect(emit).toHaveBeenCalledWith(
+        'Element Clicked',
+        expect.objectContaining({
+          text: 'A'.repeat(64),
+        }),
+      )
     })
 
     it('never captures input field values', () => {
@@ -146,11 +155,14 @@ describe('Autocapture', () => {
       form.dispatchEvent(new Event('submit', { bubbles: true }))
       document.body.removeChild(form)
 
-      expect(emit).toHaveBeenCalledWith('Form Submitted', expect.objectContaining({
-        form_id: 'signup',
-        form_name: 'signup-form',
-        action: 'https://api.example.com/signup',
-      }))
+      expect(emit).toHaveBeenCalledWith(
+        'Form Submitted',
+        expect.objectContaining({
+          form_id: 'signup',
+          form_name: 'signup-form',
+          action: 'https://api.example.com/signup',
+        }),
+      )
     })
   })
 

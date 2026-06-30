@@ -5,21 +5,18 @@ pub mod health;
 mod tests {
     use std::sync::Arc;
 
-use axum::body::Body;
-use axum::extract::DefaultBodyLimit;
-use axum::http::{Request, StatusCode};
-use axum::Router;
-use tower::util::ServiceExt;
+    use axum::body::Body;
+    use axum::extract::DefaultBodyLimit;
+    use axum::http::{Request, StatusCode};
+    use axum::Router;
+    use tower::util::ServiceExt;
 
     use crate::auth::MockAuth;
     use crate::kafka::producer::MockProducer;
     use crate::rate_limiter::RateLimiter;
     use crate::AppState;
 
-    fn test_app(
-        auth_keys: Vec<(&str, &str)>,
-        rate_capacity: u64,
-    ) -> Router {
+    fn test_app(auth_keys: Vec<(&str, &str)>, rate_capacity: u64) -> Router {
         let auth = MockAuth::new();
         for (key, pid) in auth_keys {
             auth.insert(key, pid);
@@ -35,14 +32,8 @@ use tower::util::ServiceExt;
         });
 
         Router::new()
-            .route(
-                "/v1/batch",
-                axum::routing::post(super::batch::post_batch),
-            )
-            .route(
-                "/health",
-                axum::routing::get(super::health::get_health),
-            )
+            .route("/v1/batch", axum::routing::post(super::batch::post_batch))
+            .route("/health", axum::routing::get(super::health::get_health))
             .layer(DefaultBodyLimit::max(1_048_576))
             .with_state(state)
     }

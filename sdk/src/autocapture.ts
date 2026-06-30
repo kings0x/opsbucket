@@ -78,17 +78,16 @@ export class Autocapture {
   }
 
   private patchHistory(): void {
-    const self = this
     this.originalPushState = history.pushState
-    history.pushState = function (...args) {
-      self.originalPushState!.apply(this, args)
-      self.emitPageViewed()
+    history.pushState = (...args) => {
+      this.originalPushState!.apply(history, args)
+      this.emitPageViewed()
     }
 
     this.originalReplaceState = history.replaceState
-    history.replaceState = function (...args) {
-      self.originalReplaceState!.apply(this, args)
-      self.emitPageViewed()
+    history.replaceState = (...args) => {
+      this.originalReplaceState!.apply(history, args)
+      this.emitPageViewed()
     }
   }
 

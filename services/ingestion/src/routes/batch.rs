@@ -28,10 +28,7 @@ fn extract_write_key(headers: &HeaderMap, query: &BatchQuery) -> Option<String> 
 }
 
 fn extract_ip(headers: &HeaderMap) -> String {
-    if let Some(fwd) = headers
-        .get("x-forwarded-for")
-        .and_then(|v| v.to_str().ok())
-    {
+    if let Some(fwd) = headers.get("x-forwarded-for").and_then(|v| v.to_str().ok()) {
         if let Some(ip) = fwd.split(',').next().map(|s| s.trim()) {
             if !ip.is_empty() {
                 return ip.to_string();
@@ -46,33 +43,38 @@ fn extract_ip(headers: &HeaderMap) -> String {
     "0.0.0.0".to_string()
 }
 
-fn stamp_events(
-    events: Vec<AnyEvent>,
-    project_id: &str,
-    ip: &str,
-) -> Vec<RawEvent> {
+fn stamp_events(events: Vec<AnyEvent>, project_id: &str, ip: &str) -> Vec<RawEvent> {
     let received_at = Utc::now().to_rfc3339();
     events
         .into_iter()
-        .map(|e| RawEvent::from_any(e, project_id.to_string(), received_at.clone(), ip.to_string()))
+        .map(|e| {
+            RawEvent::from_any(
+                e,
+                project_id.to_string(),
+                received_at.clone(),
+                ip.to_string(),
+            )
+        })
         .collect()
 }
 
 fn validation_to_status(err: &ValidationError) -> (StatusCode, serde_json::Value) {
     match err {
-        ValidationError::BatchTooLarge { got: _, max_events } => {
-            (StatusCode::PAYLOAD_TOO_LARGE, json!({
+        ValidationError::BatchTooLarge { got: _, max_events } => (
+            StatusCode::PAYLOAD_TOO_LARGE,
+            json!({
                 "error": "batch_too_large",
                 "max_events": max_events,
                 "max_bytes": 1_048_576,
-            }))
-        }
-        ValidationError::InvalidEvent { index, message } => {
-            (StatusCode::BAD_REQUEST, json!({
+            }),
+        ),
+        ValidationError::InvalidEvent { index, message } => (
+            StatusCode::BAD_REQUEST,
+            json!({
                 "error": "validation_failed",
                 "detail": format!("event {}: {}", index, message),
-            }))
-        }
+            }),
+        ),
     }
 }
 

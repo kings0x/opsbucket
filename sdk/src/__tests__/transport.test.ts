@@ -113,16 +113,26 @@ describe('Transport', () => {
         .mockResolvedValue({ status: 200, headers: new Headers() })
 
       const batch = makeBatch({
-batch: [
-          { ...makeBatch().batch[0] as unknown as Record<string, unknown>, messageId: crypto.randomUUID(), event: 'e1' } as unknown as AnyEvent,
-          { ...makeBatch().batch[0] as unknown as Record<string, unknown>, messageId: crypto.randomUUID(), event: 'e2' } as unknown as AnyEvent,
+        batch: [
+          {
+            ...(makeBatch().batch[0] as unknown as Record<string, unknown>),
+            messageId: crypto.randomUUID(),
+            event: 'e1',
+          } as unknown as AnyEvent,
+          {
+            ...(makeBatch().batch[0] as unknown as Record<string, unknown>),
+            messageId: crypto.randomUUID(),
+            event: 'e2',
+          } as unknown as AnyEvent,
         ],
       })
 
       await transport.send(batch)
 
       expect(fetchMock).toHaveBeenCalledTimes(3)
-      const bodies = fetchMock.mock.calls.map((c: any[]) => JSON.parse(c[1].body) as BatchPayload)
+      const bodies = fetchMock.mock.calls.map(
+        (c) => JSON.parse((c[1] as { body: string }).body) as BatchPayload,
+      )
       expect(bodies[0].batch).toHaveLength(2)
       expect(bodies[1].batch).toHaveLength(1)
       expect((bodies[1].batch[0] as unknown as Record<string, unknown>).event).toBe('e1')

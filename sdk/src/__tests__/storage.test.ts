@@ -36,7 +36,10 @@ describe('Storage', () => {
 
   describe('localStorage fallback', () => {
     it('does not crash when localStorage.setItem throws', () => {
-      const spy = vi.spyOn(Storage.prototype as any, 'flushAnonymousId').mockImplementation(() => {})
+      const spy = vi
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .spyOn(Storage.prototype as any, 'flushAnonymousId')
+        .mockImplementation(() => {})
       vi.spyOn(window.localStorage, 'setItem').mockImplementation(() => {
         throw new Error('Quota exceeded')
       })

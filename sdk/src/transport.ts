@@ -105,11 +105,11 @@ export class Transport {
 
   private async backoff(attempt: number): Promise<void> {
     const delay = Math.min(BASE_DELAY * Math.pow(2, attempt) + jitter(), MAX_DELAY)
-    return new Promise(resolve => setTimeout(resolve, delay))
+    return new Promise((resolve) => setTimeout(resolve, delay))
   }
 
   private async delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms))
+    return new Promise((resolve) => setTimeout(resolve, ms))
   }
 
   private parseRetryAfter(response: Response): number {

@@ -18,12 +18,11 @@ pub async fn validate_write_key(
         }
     }
 
-    let row: Option<(String,)> = sqlx::query_as(
-        "SELECT project_id FROM write_keys WHERE key = $1 AND revoked_at IS NULL",
-    )
-    .bind(key)
-    .fetch_optional(pg)
-    .await?;
+    let row: Option<(String,)> =
+        sqlx::query_as("SELECT project_id FROM write_keys WHERE key = $1 AND revoked_at IS NULL")
+            .bind(key)
+            .fetch_optional(pg)
+            .await?;
 
     if let Some((project_id,)) = row {
         let cache_value = serde_json::json!({ "project_id": project_id }).to_string();
@@ -76,20 +75,19 @@ mod tests {
 
         fn pg_lookup(&self, key: &str) -> Option<String> {
             let entries = self.pg_entries.lock().unwrap();
-            entries.get(key).and_then(|(pid, revoked)| {
-                if *revoked {
-                    None
-                } else {
-                    Some(pid.clone())
-                }
-            })
+            entries.get(key).and_then(
+                |(pid, revoked)| {
+                    if *revoked {
+                        None
+                    } else {
+                        Some(pid.clone())
+                    }
+                },
+            )
         }
     }
 
-    fn mock_validate(
-        key: &str,
-        store: &TestStore,
-    ) -> Option<String> {
+    fn mock_validate(key: &str, store: &TestStore) -> Option<String> {
         let cache_key = format!("write_key:{}", key);
 
         if let Some(json_value) = store.redis_get(&cache_key) {
@@ -103,8 +101,7 @@ mod tests {
         let result = store.pg_lookup(key);
 
         if let Some(ref project_id) = result {
-            let cache_value =
-                serde_json::json!({ "project_id": project_id }).to_string();
+            let cache_value = serde_json::json!({ "project_id": project_id }).to_string();
             store.set_redis(&cache_key, &cache_value);
         }
 
@@ -114,10 +111,7 @@ mod tests {
     #[test]
     fn valid_key_redis_cache_hit() {
         let store = TestStore::new();
-        store.set_redis(
-            "write_key:valid-key",
-            r#"{"project_id": "proj-123"}"#,
-        );
+        store.set_redis("write_key:valid-key", r#"{"project_id": "proj-123"}"#);
 
         let result = mock_validate("valid-key", &store);
         assert_eq!(result, Some("proj-123".to_string()));
@@ -134,8 +128,7 @@ mod tests {
         let cache_key = format!("write_key:{}", "valid-key");
         let cached = store.redis_get(&cache_key);
         assert!(cached.is_some());
-        let parsed: serde_json::Value =
-            serde_json::from_str(&cached.unwrap()).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&cached.unwrap()).unwrap();
         assert_eq!(parsed["project_id"], "proj-456");
     }
 
@@ -167,8 +160,7 @@ mod tests {
         let cache_key = format!("write_key:{}", "fresh-key");
         let cached = store.redis_get(&cache_key);
         assert!(cached.is_some());
-        let parsed: serde_json::Value =
-            serde_json::from_str(&cached.unwrap()).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&cached.unwrap()).unwrap();
         assert_eq!(parsed["project_id"], "proj-000");
     }
 

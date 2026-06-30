@@ -132,7 +132,7 @@ describe('Batcher', () => {
       expect(warnSpy).toHaveBeenCalled()
 
       const remaining = (batcher as unknown as { queue: AnyEvent[] }).queue
-      expect(remaining.map(e => 'event' in e ? e.event : null)).toEqual(['e2', 'e3', 'e4'])
+      expect(remaining.map((e) => ('event' in e ? e.event : null))).toEqual(['e2', 'e3', 'e4'])
 
       warnSpy.mockRestore()
     })

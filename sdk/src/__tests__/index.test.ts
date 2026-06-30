@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { init, identify, track, page, reset, flush } from '../index'
-import type { TrackEvent, IdentifyEvent } from '../types'
+import type { TrackEvent } from '../types'
 
 describe('integration', () => {
   let fetchMock: ReturnType<typeof vi.fn>
@@ -41,23 +41,27 @@ describe('integration', () => {
     identify('user-123', { plan: 'premium' })
     track('purchase', { amount: 29.99 })
 
-    const allEvents: any[] = []
-    for (const c of fetchMock.mock.calls) {
-      const body = JSON.parse(c[1].body)
+    const allEvents: Record<string, unknown>[] = []
+    for (const c of fetchMock.mock.calls as [string, { body: string }][]) {
+      const body = JSON.parse(c[1].body) as { batch: Record<string, unknown>[] }
       allEvents.push(...body.batch)
     }
 
-    const identifyEvent = allEvents.find((e: IdentifyEvent) => e.type === 'identify')
-    const trackEvent = allEvents.find((e: TrackEvent) => e.type === 'track')
+    const identifyEvent = allEvents.find(
+      (e): e is Record<string, unknown> => (e as Record<string, unknown>).type === 'identify',
+    ) as Record<string, unknown> | undefined
+    const trackEvent = allEvents.find(
+      (e): e is Record<string, unknown> => (e as Record<string, unknown>).type === 'track',
+    ) as Record<string, unknown> | undefined
 
     expect(identifyEvent).toBeDefined()
-    expect(identifyEvent.userId).toBe('user-123')
-    expect(identifyEvent.traits).toEqual({ plan: 'premium' })
+    expect(identifyEvent?.userId).toBe('user-123')
+    expect(identifyEvent?.traits).toEqual({ plan: 'premium' })
 
     expect(trackEvent).toBeDefined()
-    expect(trackEvent.userId).toBe('user-123')
-    expect(trackEvent.event).toBe('purchase')
-    expect(trackEvent.properties).toEqual({ amount: 29.99 })
+    expect(trackEvent?.userId).toBe('user-123')
+    expect(trackEvent?.event).toBe('purchase')
+    expect(trackEvent?.properties).toEqual({ amount: 29.99 })
   })
 
   it('reset generates a new anonymousId and clears userId', () => {
@@ -75,7 +79,9 @@ describe('integration', () => {
 
     const allCalls = fetchMock.mock.calls
     const lastCallBody = JSON.parse(allCalls[allCalls.length - 1][1].body)
-    const postResetEvent = lastCallBody.batch.find((e: TrackEvent) => e.type === 'track' && e.event === 'post-reset')
+    const postResetEvent = lastCallBody.batch.find(
+      (e: TrackEvent) => e.type === 'track' && e.event === 'post-reset',
+    )
 
     expect(postResetEvent).toBeDefined()
     expect(postResetEvent.anonymousId).not.toBe(firstAnon)

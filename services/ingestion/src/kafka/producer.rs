@@ -178,17 +178,11 @@ mod tests {
         let producer = MockProducer::new();
 
         producer
-            .send_raw(
-                "proj-a",
-                &[make_raw_event("proj-a", "msg-1")],
-            )
+            .send_raw("proj-a", &[make_raw_event("proj-a", "msg-1")])
             .await
             .unwrap();
         producer
-            .send_raw(
-                "proj-b",
-                &[make_raw_event("proj-b", "msg-2")],
-            )
+            .send_raw("proj-b", &[make_raw_event("proj-b", "msg-2")])
             .await
             .unwrap();
 
