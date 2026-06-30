@@ -11,9 +11,6 @@ on:
 jobs:
   lint-test:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: sdk
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -21,8 +18,8 @@ jobs:
         with:
           node-version: 20
           cache: pnpm
-          cache-dependency-path: sdk/pnpm-lock.yaml
+          cache-dependency-path: pnpm-lock.yaml
       - run: pnpm install
-      - run: pnpm lint
-      - run: pnpm typecheck
-      - run: pnpm test
+      - run: pnpm --filter opsbucket-js lint
+      - run: pnpm --filter opsbucket-js typecheck
+      - run: pnpm --filter opsbucket-js test
