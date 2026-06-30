@@ -25,7 +25,7 @@ impl KafkaProducer {
             .set("queue.buffering.max.ms", "50")
             .set("batch.num.messages", "100")
             .set("message.timeout.ms", "5000")
-            .set("compression.type", "snappy")
+            .set("compression.type", "none")
             .set("max.in.flight", "5")
             .create()?;
         Ok(Self { producer })
