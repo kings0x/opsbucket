@@ -3,7 +3,7 @@ import type { Context } from './types'
 export function buildContext(): Context {
   return {
     library: {
-      name: 'opsbucket-js',
+      name: '@opsbucket/browser',
       version: typeof __SDK_VERSION__ !== 'undefined' ? __SDK_VERSION__ : '0.0.0',
     },
     page: {

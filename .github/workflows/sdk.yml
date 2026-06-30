@@ -20,6 +20,6 @@ jobs:
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
       - run: pnpm install
-      - run: pnpm --filter opsbucket-js lint
-      - run: pnpm --filter opsbucket-js typecheck
-      - run: pnpm --filter opsbucket-js test
+      - run: pnpm --filter @opsbucket/browser lint
+      - run: pnpm --filter @opsbucket/browser typecheck
+      - run: pnpm --filter @opsbucket/browser test

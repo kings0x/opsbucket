@@ -123,7 +123,7 @@ describe('integration', () => {
     const event = body.batch[0]
 
     expect(event.context).toBeDefined()
-    expect(event.context.library.name).toBe('opsbucket-js')
+    expect(event.context.library.name).toBe('@opsbucket/browser')
     expect(event.context.page.url).toBe('https://example.com/page')
     expect(event.context.screen).toBeDefined()
     expect(event.context.campaign).toBeDefined()

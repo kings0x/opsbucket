@@ -6,4 +6,5 @@ target/
 .env
 *.log
 sdk/dist/
+nul
 

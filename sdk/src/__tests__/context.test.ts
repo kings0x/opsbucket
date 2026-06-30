@@ -129,9 +129,9 @@ describe('buildContext', () => {
   })
 
   describe('library', () => {
-    it('sets library name to opsbucket-js', () => {
+    it('sets library name to @opsbucket/browser', () => {
       const ctx = buildContext()
-      expect(ctx.library.name).toBe('opsbucket-js')
+      expect(ctx.library.name).toBe('@opsbucket/browser')
     })
 
     it('includes a library version string', () => {

@@ -11,7 +11,7 @@ function makeEvent(overrides?: Partial<AnyEvent>): AnyEvent {
     userId: null,
     originalTimestamp: new Date().toISOString(),
     context: {
-      library: { name: 'opsbucket-js', version: '0.1.0' },
+      library: { name: '@opsbucket/browser', version: '0.1.0' },
       page: { url: '', path: '', referrer: '', title: '', search: '' },
       screen: { width: 1024, height: 768, density: 1 },
       userAgent: '',
