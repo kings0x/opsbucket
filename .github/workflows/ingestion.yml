@@ -3,10 +3,10 @@ name: Ingestion
 on:
   pull_request:
     branches: [develop, main]
-    paths: ['services/ingestion/**', 'services/shared/**']
+    paths: ['services/ingestion/**', 'services/shared/**', '.github/workflows/ingestion.yml']
   push:
     branches: [develop]
-    paths: ['services/ingestion/**', 'services/shared/**']
+    paths: ['services/ingestion/**', 'services/shared/**', '.github/workflows/ingestion.yml']
 
 jobs:
   lint-test:

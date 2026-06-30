@@ -3,10 +3,10 @@ name: SDK
 on:
   pull_request:
     branches: [develop, main]
-    paths: ['sdk/**']
+    paths: ['sdk/**', '.github/workflows/sdk.yml']
   push:
     branches: [develop]
-    paths: ['sdk/**']
+    paths: ['sdk/**', '.github/workflows/sdk.yml']
 
 jobs:
   lint-test:
