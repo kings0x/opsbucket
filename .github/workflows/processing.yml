@@ -3,10 +3,10 @@ name: Processing
 on:
   pull_request:
     branches: [develop, main]
-    paths: ['services/processing/**', 'services/shared/**']
+    paths: ['services/processing/**', 'services/shared/**', 'services/Cargo.lock', '.github/workflows/processing.yml']
   push:
     branches: [develop]
-    paths: ['services/processing/**', 'services/shared/**']
+    paths: ['services/processing/**', 'services/shared/**', 'services/Cargo.lock', '.github/workflows/processing.yml']
 
 jobs:
   lint-test:
@@ -16,6 +16,8 @@ jobs:
         working-directory: services
     steps:
       - uses: actions/checkout@v4
+      - name: Install system dependencies for librdkafka
+        run: sudo apt-get update && sudo apt-get install -y libcurl4-openssl-dev libsasl2-dev
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
