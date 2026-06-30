@@ -12,6 +12,7 @@ mod tests {
     use tower::util::ServiceExt;
 
     use crate::auth::MockAuth;
+    use crate::db::{MockPgHealth, MockRedisHealth};
     use crate::kafka::producer::MockProducer;
     use crate::rate_limiter::RateLimiter;
     use crate::AppState;
@@ -23,11 +24,15 @@ mod tests {
         }
 
         let kafka = MockProducer::new();
+        let kafka_health = MockProducer::new();
         let rate_limiter = RateLimiter::new(rate_capacity, rate_capacity);
 
         let state = Arc::new(AppState {
             auth: Arc::new(auth),
             kafka: Arc::new(kafka),
+            kafka_health: Arc::new(kafka_health),
+            pg: Arc::new(MockPgHealth),
+            redis: Arc::new(MockRedisHealth),
             rate_limiter: std::sync::Mutex::new(rate_limiter),
         });
 
@@ -221,6 +226,9 @@ mod tests {
         let state = Arc::new(AppState {
             auth: Arc::new(auth),
             kafka: Arc::new(kafka),
+            kafka_health: Arc::new(MockProducer::new()),
+            pg: Arc::new(MockPgHealth),
+            redis: Arc::new(MockRedisHealth),
             rate_limiter: std::sync::Mutex::new(rate_limiter),
         });
 

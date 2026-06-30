@@ -3,7 +3,10 @@ use std::time::Duration;
 use anyhow::Result;
 use async_trait::async_trait;
 use opsbucket_shared::events::RawEvent;
-use rdkafka::producer::{FutureProducer, FutureRecord};
+use rdkafka::producer::{FutureProducer, FutureRecord, Producer};
+use rdkafka::util::Timeout;
+
+use super::KafkaHealth;
 
 #[async_trait]
 pub trait EventProducer: Send + Sync {
@@ -46,9 +49,20 @@ impl EventProducer for KafkaProducer {
     }
 }
 
+#[async_trait]
+impl KafkaHealth for KafkaProducer {
+    async fn check_health(&self) -> Result<()> {
+        self.producer
+            .client()
+            .fetch_metadata(None, Timeout::After(Duration::from_secs(5)))?;
+        Ok(())
+    }
+}
+
 pub struct MockProducer {
     pub messages: std::sync::Mutex<Vec<(String, Vec<RawEvent>)>>,
     pub fail_on_send: std::sync::Mutex<bool>,
+    pub fail_health: std::sync::Mutex<bool>,
 }
 
 impl Default for MockProducer {
@@ -56,6 +70,7 @@ impl Default for MockProducer {
         Self {
             messages: std::sync::Mutex::new(Vec::new()),
             fail_on_send: std::sync::Mutex::new(false),
+            fail_health: std::sync::Mutex::new(false),
         }
     }
 }
@@ -77,6 +92,17 @@ impl EventProducer for MockProducer {
             .unwrap()
             .push((project_id.to_string(), events.to_vec()));
         Ok(())
+    }
+}
+
+#[async_trait]
+impl KafkaHealth for MockProducer {
+    async fn check_health(&self) -> Result<()> {
+        if *self.fail_health.lock().unwrap() {
+            Err(anyhow::anyhow!("mock: kafka unhealthy"))
+        } else {
+            Ok(())
+        }
     }
 }
 

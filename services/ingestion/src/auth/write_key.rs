@@ -1,15 +1,17 @@
 use anyhow::Result;
+use deadpool_redis::Pool;
 use redis::AsyncCommands;
 
 pub async fn validate_write_key(
     key: &str,
-    redis: &redis::Client,
+    redis: &Pool,
     pg: &sqlx::PgPool,
 ) -> Result<Option<String>> {
     let cache_key = format!("write_key:{}", key);
 
-    let mut rconn = redis.get_multiplexed_async_connection().await?;
-    let cached: Option<String> = rconn.get(&cache_key).await?;
+    let mut conn = redis.get().await?;
+
+    let cached: Option<String> = conn.get(&cache_key).await?;
 
     if let Some(json_value) = cached {
         let parsed: serde_json::Value = serde_json::from_str(&json_value)?;
@@ -31,7 +33,7 @@ pub async fn validate_write_key(
             .arg(&cache_value)
             .arg("EX")
             .arg(300i64)
-            .query_async(&mut rconn)
+            .query_async(&mut *conn)
             .await?;
         Ok(Some(project_id))
     } else {
@@ -41,7 +43,6 @@ pub async fn validate_write_key(
 
 #[cfg(test)]
 mod tests {
-
     struct TestStore {
         redis_entries: std::sync::Mutex<std::collections::HashMap<String, String>>,
         pg_entries: std::sync::Mutex<std::collections::HashMap<String, (String, bool)>>,

@@ -1,6 +1,7 @@
 pub mod write_key;
 
 use async_trait::async_trait;
+use deadpool_redis::Pool;
 
 #[async_trait]
 pub trait AuthValidator: Send + Sync {
@@ -8,12 +9,12 @@ pub trait AuthValidator: Send + Sync {
 }
 
 pub struct RedisPgAuth {
-    redis: redis::Client,
+    redis: Pool,
     pg: sqlx::PgPool,
 }
 
 impl RedisPgAuth {
-    pub fn new(redis: redis::Client, pg: sqlx::PgPool) -> Self {
+    pub fn new(redis: Pool, pg: sqlx::PgPool) -> Self {
         Self { redis, pg }
     }
 }

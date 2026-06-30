@@ -2,8 +2,9 @@ use std::sync::Arc;
 
 use axum::body::Bytes;
 use axum::extract::{Query, State};
-use axum::http::{HeaderMap, StatusCode};
-use axum::response::IntoResponse;
+use axum::http::header;
+use axum::http::{HeaderMap, HeaderValue, StatusCode};
+use axum::response::{IntoResponse, Response};
 use axum::Json;
 use chrono::Utc;
 use opsbucket_shared::events::{AnyEvent, BatchPayload, RawEvent};
@@ -58,6 +59,102 @@ fn stamp_events(events: Vec<AnyEvent>, project_id: &str, ip: &str) -> Vec<RawEve
         .collect()
 }
 
+fn json_response(status: StatusCode, value: serde_json::Value) -> Response {
+    (status, Json(value)).into_response()
+}
+
+pub async fn post_batch(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Query(query): Query<BatchQuery>,
+    bytes: Bytes,
+) -> Response {
+    let write_key_str = match extract_write_key(&headers, &query) {
+        Some(k) => k,
+        None => {
+            return json_response(
+                StatusCode::UNAUTHORIZED,
+                json!({"error": "invalid_write_key"}),
+            );
+        }
+    };
+
+    let rate_result = {
+        let mut limiter = state.rate_limiter.lock().unwrap();
+        limiter.check(&write_key_str)
+    };
+
+    if !rate_result.allowed {
+        let retry_after = rate_result.retry_after_seconds;
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::RETRY_AFTER,
+            HeaderValue::from_str(&retry_after.to_string()).unwrap(),
+        );
+        return (
+            StatusCode::TOO_MANY_REQUESTS,
+            headers,
+            Json(json!({
+                "error": "rate_limited",
+                "retry_after_seconds": retry_after,
+            })),
+        )
+            .into_response();
+    }
+
+    let project_id = match state.auth.validate(&write_key_str).await {
+        Some(pid) => pid,
+        None => {
+            return json_response(
+                StatusCode::UNAUTHORIZED,
+                json!({"error": "invalid_write_key"}),
+            );
+        }
+    };
+
+    tracing::debug!(write_key = %write_key_str, project_id = %project_id, "write key validated");
+
+    let payload: BatchPayload = match serde_json::from_slice(&bytes) {
+        Ok(p) => p,
+        Err(_) => {
+            return json_response(
+                StatusCode::BAD_REQUEST,
+                json!({
+                    "error": "validation_failed",
+                    "detail": "request body is empty or malformed",
+                }),
+            );
+        }
+    };
+
+    if let Err(e) = validate_batch(&payload) {
+        let (status, body) = validation_to_status(&e);
+        return json_response(status, body);
+    }
+
+    let ip = extract_ip(&headers);
+
+    let raw_events = stamp_events(payload.batch, &project_id, &ip);
+
+    let ingested = raw_events.len();
+
+    if let Err(e) = state.kafka.send_raw(&project_id, &raw_events).await {
+        tracing::error!(error = %e, project_id = %project_id, "kafka send failed");
+        return json_response(
+            StatusCode::BAD_GATEWAY,
+            json!({
+                "error": "upstream_unavailable",
+                "detail": "kafka_down",
+            }),
+        );
+    }
+
+    json_response(
+        StatusCode::OK,
+        json!({"status": "ok", "ingested": ingested}),
+    )
+}
+
 fn validation_to_status(err: &ValidationError) -> (StatusCode, serde_json::Value) {
     match err {
         ValidationError::BatchTooLarge { got: _, max_events } => (
@@ -76,84 +173,4 @@ fn validation_to_status(err: &ValidationError) -> (StatusCode, serde_json::Value
             }),
         ),
     }
-}
-
-pub async fn post_batch(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
-    Query(query): Query<BatchQuery>,
-    bytes: Bytes,
-) -> impl IntoResponse {
-    let write_key_str = match extract_write_key(&headers, &query) {
-        Some(k) => k,
-        None => {
-            return (
-                StatusCode::UNAUTHORIZED,
-                Json(json!({"error": "invalid_write_key"})),
-            );
-        }
-    };
-
-    {
-        let mut limiter = state.rate_limiter.lock().unwrap();
-        if !limiter.check(&write_key_str) {
-            return (
-                StatusCode::TOO_MANY_REQUESTS,
-                Json(json!({
-                    "error": "rate_limited",
-                    "retry_after_seconds": 60,
-                })),
-            );
-        }
-    }
-
-    let project_id = match state.auth.validate(&write_key_str).await {
-        Some(pid) => pid,
-        None => {
-            return (
-                StatusCode::UNAUTHORIZED,
-                Json(json!({"error": "invalid_write_key"})),
-            );
-        }
-    };
-
-    let payload: BatchPayload = match serde_json::from_slice(&bytes) {
-        Ok(p) => p,
-        Err(_) => {
-            return (
-                StatusCode::BAD_REQUEST,
-                Json(json!({
-                    "error": "validation_failed",
-                    "detail": "request body is empty or malformed",
-                })),
-            );
-        }
-    };
-
-    if let Err(e) = validate_batch(&payload) {
-        let (status, body) = validation_to_status(&e);
-        return (status, Json(body));
-    }
-
-    let ip = extract_ip(&headers);
-
-    let raw_events = stamp_events(payload.batch, &project_id, &ip);
-
-    let ingested = raw_events.len();
-
-    if let Err(e) = state.kafka.send_raw(&project_id, &raw_events).await {
-        tracing::error!(error = %e, project_id = %project_id, "kafka send failed");
-        return (
-            StatusCode::BAD_GATEWAY,
-            Json(json!({
-                "error": "upstream_unavailable",
-                "detail": "kafka_down",
-            })),
-        );
-    }
-
-    (
-        StatusCode::OK,
-        Json(json!({"status": "ok", "ingested": ingested})),
-    )
 }
