@@ -317,8 +317,13 @@ ALL_PROJ=$(query_ch "SELECT count() FROM events WHERE project_id='$PROJECT_ID'")
 
 # ── Postgres Verification ──
 bold "── Postgres Verification ──"
-ALIAS_COUNT=$(docker exec infra-postgres-1 psql -U opsbucket -d opsbucket -t -A \
-  -c "SELECT count(*) FROM identity_aliases WHERE project_id='$PROJECT_ID' AND anonymous_id='anon_e2e_identify' AND user_id='usr_e2e_jane'" 2>/dev/null || echo "0")
+if command -v psql &>/dev/null; then
+  ALIAS_COUNT=$(PGPASSWORD=opsbucket psql -h localhost -U opsbucket -d opsbucket -t -A \
+    -c "SELECT count(*) FROM identity_aliases WHERE project_id='$PROJECT_ID' AND anonymous_id='anon_e2e_identify' AND user_id='usr_e2e_jane'" 2>/dev/null || echo "0")
+else
+  ALIAS_COUNT=$(docker exec infra-postgres-1 psql -U opsbucket -d opsbucket -t -A \
+    -c "SELECT count(*) FROM identity_aliases WHERE project_id='$PROJECT_ID' AND anonymous_id='anon_e2e_identify' AND user_id='usr_e2e_jane'" 2>/dev/null || echo "0")
+fi
 [ "$ALIAS_COUNT" = "1" ] && pass "identity_aliases has correct mapping" || fail "expected 1 alias row, got '$ALIAS_COUNT'"
 
 # ── Summary ──
