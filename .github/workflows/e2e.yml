@@ -6,6 +6,7 @@ on:
     paths:
       - 'services/ingestion/**'
       - 'services/processing/**'
+      - 'services/archiver/**'
       - 'services/shared/**'
       - 'services/migrator/**'
       - 'infra/**'
@@ -17,6 +18,7 @@ on:
     paths:
       - 'services/ingestion/**'
       - 'services/processing/**'
+      - 'services/archiver/**'
       - 'services/shared/**'
       - 'services/migrator/**'
       - 'infra/**'
@@ -113,6 +115,10 @@ jobs:
       - name: Build processing
         working-directory: services
         run: cargo build -p opsbucket-processing
+
+      - name: Build archiver
+        working-directory: services
+        run: cargo build -p opsbucket-archiver
 
       - name: Start ingestion
         working-directory: services
