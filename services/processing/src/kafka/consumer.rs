@@ -1,10 +1,11 @@
+use std::collections::HashMap;
 use std::time::Duration;
 
 use anyhow::Result;
 use clickhouse::Client as ChClient;
 use opsbucket_shared::events::RawEvent;
-use rdkafka::consumer::{Consumer, StreamConsumer};
-use rdkafka::ClientConfig;
+use rdkafka::consumer::{CommitMode, Consumer, StreamConsumer};
+use rdkafka::{ClientConfig, Offset, TopicPartitionList};
 use rdkafka::Message;
 use redis::aio::ConnectionManager as RedisConnectionManager;
 use sqlx::PgPool;
@@ -39,6 +40,8 @@ impl ProcessingConsumer {
         redis_url: &str,
         database_url: &str,
         clickhouse_url: &str,
+        clickhouse_user: &str,
+        clickhouse_password: &str,
         batch_size: usize,
         batch_timeout_ms: u64,
         dedup_ttl: u64,
@@ -61,7 +64,10 @@ impl ProcessingConsumer {
 
         let pg = PgPool::connect(database_url).await?;
 
-        let clickhouse = ChClient::default().with_url(clickhouse_url);
+        let clickhouse = ChClient::default()
+            .with_url(clickhouse_url)
+            .with_user(clickhouse_user)
+            .with_password(clickhouse_password);
 
         let dlq = DlqProducer::new(brokers)?;
 
@@ -106,6 +112,7 @@ impl ProcessingConsumer {
 
     async fn process_batch(&mut self) -> Result<bool> {
         let mut messages = Vec::new();
+        let mut partition_offsets: HashMap<i32, i64> = HashMap::new();
         let deadline = tokio::time::Instant::now() + Duration::from_millis(self.batch_timeout_ms);
 
         loop {
@@ -118,6 +125,7 @@ impl ProcessingConsumer {
 
             match msg {
                 Ok(Ok(kafka_msg)) => {
+                    partition_offsets.insert(kafka_msg.partition(), kafka_msg.offset());
                     if let Some(payload) = kafka_msg.payload() {
                         match serde_json::from_slice::<RawEvent>(payload) {
                             Ok(event) => {
@@ -155,6 +163,18 @@ impl ProcessingConsumer {
         }
 
         self.process_events(messages).await?;
+
+        if !partition_offsets.is_empty() {
+            let mut tpl = TopicPartitionList::new();
+            for (partition, offset) in &partition_offsets {
+                tpl.add_partition_offset("raw-events", *partition, Offset::Offset(*offset + 1))?;
+            }
+            info!(
+                offsets = ?partition_offsets,
+                "committing offsets after successful batch"
+            );
+            self.consumer.commit(&tpl, CommitMode::Sync)?;
+        }
 
         Ok(true)
     }

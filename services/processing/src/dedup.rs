@@ -13,9 +13,9 @@ pub async fn filter(
         let is_new: bool = redis::cmd("SETNX")
             .arg(&key)
             .arg("1")
-            .query_async::<()>(redis)
+            .query_async::<i64>(redis)
             .await
-            .map(|_: ()| true)
+            .map(|r| r == 1)
             .unwrap_or(false);
         if is_new {
             redis::cmd("EXPIRE")
@@ -95,7 +95,7 @@ mod tests {
     #[tokio::test]
     async fn first_occurrence_is_kept() {
         let mut redis = test_redis().await;
-        let events = vec![make_event("msg-1")];
+        let events = vec![make_event("msg_kept")];
         let result = filter(events, &mut redis, 3600).await.unwrap();
         assert_eq!(result.len(), 1);
     }
@@ -103,7 +103,7 @@ mod tests {
     #[tokio::test]
     async fn duplicate_within_ttl_is_dropped() {
         let mut redis = test_redis().await;
-        let e = make_event("msg-1");
+        let e = make_event("msg_dedup");
         let first = filter(vec![e.clone()], &mut redis, 3600).await.unwrap();
         assert_eq!(first.len(), 1);
         let second = filter(vec![e], &mut redis, 3600).await.unwrap();
@@ -113,7 +113,7 @@ mod tests {
     #[tokio::test]
     async fn different_ids_are_both_kept() {
         let mut redis = test_redis().await;
-        let events = vec![make_event("msg-1"), make_event("msg-2")];
+        let events = vec![make_event("msg_diff1"), make_event("msg_diff2")];
         let result = filter(events, &mut redis, 3600).await.unwrap();
         assert_eq!(result.len(), 2);
     }

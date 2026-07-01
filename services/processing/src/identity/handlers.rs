@@ -98,14 +98,14 @@ mod tests {
             .await
             .unwrap();
 
-        let event = make_identify_event("anon_1", "usr_1");
+        let event = make_identify_event("anon_upsert", "usr_1");
         handle_identify(&event, &pg, &mut redis).await.unwrap();
 
         let row: (String,) = sqlx::query_as(
             "SELECT user_id FROM identity_aliases WHERE project_id = $1 AND anonymous_id = $2",
         )
         .bind("proj_1")
-        .bind("anon_1")
+        .bind("anon_upsert")
         .fetch_one(&pg)
         .await
         .unwrap();
@@ -129,17 +129,17 @@ mod tests {
             .await
             .unwrap();
 
-        let e1 = make_identify_event("anon_1", "usr_old");
+        let e1 = make_identify_event("anon_re_id", "usr_old");
         handle_identify(&e1, &pg, &mut redis).await.unwrap();
 
-        let e2 = make_identify_event("anon_1", "usr_new");
+        let e2 = make_identify_event("anon_re_id", "usr_new");
         handle_identify(&e2, &pg, &mut redis).await.unwrap();
 
         let row: (String,) = sqlx::query_as(
             "SELECT user_id FROM identity_aliases WHERE project_id = $1 AND anonymous_id = $2",
         )
         .bind("proj_1")
-        .bind("anon_1")
+        .bind("anon_re_id")
         .fetch_one(&pg)
         .await
         .unwrap();
@@ -164,20 +164,21 @@ mod tests {
             .unwrap();
 
         redis::cmd("SET")
-            .arg("alias:proj_1:anon_1")
+            .arg("alias:proj_1:anon_cache_test")
             .arg("usr_stale")
             .query_async::<()>(&mut redis)
             .await
             .unwrap();
 
-        let event = make_identify_event("anon_1", "usr_fresh");
+        let event = make_identify_event("anon_cache_test", "usr_fresh");
         handle_identify(&event, &pg, &mut redis).await.unwrap();
 
         let cached: Option<String> = redis::cmd("GET")
-            .arg("alias:proj_1:anon_1")
+            .arg("alias:proj_1:anon_cache_test")
             .query_async(&mut redis)
             .await
             .unwrap();
         assert!(cached.is_none());
     }
+
 }

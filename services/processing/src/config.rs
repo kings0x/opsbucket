@@ -7,6 +7,8 @@ pub struct Config {
     pub database_url: String,
     pub redis_url: String,
     pub clickhouse_url: String,
+    pub clickhouse_user: String,
+    pub clickhouse_password: String,
     pub batch_size: usize,
     pub batch_timeout_ms: u64,
     pub dedup_ttl_seconds: u64,
@@ -24,6 +26,8 @@ impl Config {
             database_url: env::var("DATABASE_URL").expect("DATABASE_URL must be set"),
             redis_url: env::var("REDIS_URL").expect("REDIS_URL must be set"),
             clickhouse_url: env::var("CLICKHOUSE_URL").expect("CLICKHOUSE_URL must be set"),
+            clickhouse_user: env::var("CLICKHOUSE_USER").unwrap_or_else(|_| "default".to_string()),
+            clickhouse_password: env::var("CLICKHOUSE_PASSWORD").unwrap_or_else(|_| "".to_string()),
             batch_size: env::var("BATCH_SIZE")
                 .ok()
                 .and_then(|v| v.parse().ok())

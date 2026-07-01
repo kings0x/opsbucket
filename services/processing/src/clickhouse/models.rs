@@ -1,19 +1,17 @@
-use chrono::{DateTime, Utc};
 use clickhouse::Row;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Row)]
-#[serde(rename_all = "snake_case")]
 pub struct ClickHouseRow {
+    pub project_id: String,
     pub event_id: String,
     pub event_name: String,
-    pub project_id: String,
+    pub event_type: String,
     pub anonymous_id: String,
     pub user_id: Option<String>,
-    pub event_type: String,
-    pub timestamp: DateTime<Utc>,
-    pub received_at: DateTime<Utc>,
-    pub original_timestamp: DateTime<Utc>,
+    pub timestamp: u32,
+    pub received_at: u32,
+    pub original_timestamp: u32,
     pub properties: String,
     pub traits: String,
     pub user_agent: String,

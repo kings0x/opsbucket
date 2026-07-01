@@ -22,6 +22,8 @@ async fn main() -> anyhow::Result<()> {
         &config.redis_url,
         &config.database_url,
         &config.clickhouse_url,
+        &config.clickhouse_user,
+        &config.clickhouse_password,
         config.batch_size,
         config.batch_timeout_ms,
         config.dedup_ttl_seconds,
