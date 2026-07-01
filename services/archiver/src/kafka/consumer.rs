@@ -54,7 +54,9 @@ impl ArchiverConsumer {
             .with_region(s3_region);
 
         if let Some(endpoint) = s3_endpoint {
-            builder = builder.with_endpoint(endpoint);
+            builder = builder
+                .with_endpoint(endpoint)
+                .with_virtual_hosted_style_request(false);
         }
 
         let store: Arc<dyn ObjectStore> = Arc::new(builder.build()?);
