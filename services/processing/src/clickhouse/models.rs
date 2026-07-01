@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use clickhouse::Row;
 use serde::{Deserialize, Serialize};
 
@@ -12,8 +14,8 @@ pub struct ClickHouseRow {
     pub timestamp: u32,
     pub received_at: u32,
     pub original_timestamp: u32,
-    pub properties: String,
-    pub traits: String,
+    pub properties: HashMap<String, String>,
+    pub traits: HashMap<String, String>,
     pub user_agent: String,
     pub locale: String,
     pub timezone: String,

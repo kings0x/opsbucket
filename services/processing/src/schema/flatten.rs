@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::clickhouse::models::ClickHouseRow;
 use crate::timestamp::TimestampedEvent;
 
@@ -48,75 +50,62 @@ pub fn flatten(event: TimestampedEvent) -> ClickHouseRow {
     }
 }
 
-fn build_properties(event: &TimestampedEvent) -> String {
+fn build_properties(event: &TimestampedEvent) -> HashMap<String, String> {
     match event.event.event_type.as_str() {
         "track" => event
             .event
             .properties
             .as_ref()
             .map(stringify_map)
-            .unwrap_or_else(|| "{}".to_string()),
+            .unwrap_or_default(),
         "identify" => event
             .event
             .traits
             .as_ref()
             .map(stringify_map)
-            .unwrap_or_else(|| "{}".to_string()),
+            .unwrap_or_default(),
         "page" => {
-            let mut merged = serde_json::Map::new();
+            let mut merged = HashMap::new();
             if let Some(props) = &event.event.properties {
                 if let Some(obj) = props.as_object() {
                     for (k, v) in obj {
-                        merged.insert(k.clone(), v.clone());
+                        merged.insert(k.clone(), json_value_to_string(v));
                     }
                 }
             }
-            merged.insert(
-                "url".to_string(),
-                serde_json::json!(event.event.context.page.url),
-            );
-            merged.insert(
-                "path".to_string(),
-                serde_json::json!(event.event.context.page.path),
-            );
+            merged.insert("url".to_string(), event.event.context.page.url.clone());
+            merged.insert("path".to_string(), event.event.context.page.path.clone());
             merged.insert(
                 "referrer".to_string(),
-                serde_json::json!(event.event.context.page.referrer),
+                event.event.context.page.referrer.clone(),
             );
-            merged.insert(
-                "title".to_string(),
-                serde_json::json!(event.event.context.page.title),
-            );
+            merged.insert("title".to_string(), event.event.context.page.title.clone());
             merged.insert(
                 "search".to_string(),
-                serde_json::json!(event.event.context.page.search),
+                event.event.context.page.search.clone(),
             );
-            serde_json::Value::Object(merged).to_string()
+            merged
         }
-        _ => "{}".to_string(),
+        _ => HashMap::new(),
     }
 }
 
-fn build_traits(event: &TimestampedEvent) -> String {
+fn build_traits(event: &TimestampedEvent) -> HashMap<String, String> {
     event
         .event
         .traits
         .as_ref()
         .map(stringify_map)
-        .unwrap_or_else(|| "{}".to_string())
+        .unwrap_or_default()
 }
 
-fn stringify_map(value: &serde_json::Value) -> String {
+fn stringify_map(value: &serde_json::Value) -> HashMap<String, String> {
     match value {
-        serde_json::Value::Object(map) => {
-            let mut out = serde_json::Map::new();
-            for (k, v) in map {
-                let s = json_value_to_string(v);
-                out.insert(k.clone(), serde_json::Value::String(s));
-            }
-            serde_json::Value::Object(out).to_string()
-        }
-        _ => value.to_string(),
+        serde_json::Value::Object(map) => map
+            .iter()
+            .map(|(k, v)| (k.clone(), json_value_to_string(v)))
+            .collect(),
+        _ => HashMap::new(),
     }
 }
 
@@ -251,10 +240,9 @@ mod tests {
         );
         let ts = correct(vec![raw]).unwrap();
         let row = flatten(ts.into_iter().next().unwrap());
-        let props: serde_json::Value = serde_json::from_str(&row.properties).unwrap();
-        assert_eq!(props["button_text"], "Sign Up");
-        assert_eq!(props["count"], "42");
-        assert_eq!(props["active"], "true");
+        assert_eq!(row.properties.get("button_text").unwrap(), "Sign Up");
+        assert_eq!(row.properties.get("count").unwrap(), "42");
+        assert_eq!(row.properties.get("active").unwrap(), "true");
     }
 
     #[test]
@@ -267,9 +255,8 @@ mod tests {
         );
         let ts = correct(vec![raw]).unwrap();
         let row = flatten(ts.into_iter().next().unwrap());
-        let props: serde_json::Value = serde_json::from_str(&row.properties).unwrap();
-        assert_eq!(props["email"], "jane@example.com");
-        assert_eq!(props["plan"], "pro");
+        assert_eq!(row.properties.get("email").unwrap(), "jane@example.com");
+        assert_eq!(row.properties.get("plan").unwrap(), "pro");
     }
 
     #[test]
@@ -282,9 +269,11 @@ mod tests {
         );
         let ts = correct(vec![raw]).unwrap();
         let row = flatten(ts.into_iter().next().unwrap());
-        let props: serde_json::Value = serde_json::from_str(&row.properties).unwrap();
-        assert_eq!(props["url"], "https://example.com/page");
-        assert_eq!(props["custom_prop"], "custom_val");
+        assert_eq!(
+            row.properties.get("url").unwrap(),
+            "https://example.com/page"
+        );
+        assert_eq!(row.properties.get("custom_prop").unwrap(), "custom_val");
     }
 
     #[test]

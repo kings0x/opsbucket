@@ -8,8 +8,8 @@ CREATE TABLE IF NOT EXISTS events (
     timestamp DateTime,
     received_at DateTime,
     original_timestamp DateTime,
-    properties String,
-    traits String,
+    properties Map(String, String),
+    traits Map(String, String),
     user_agent String,
     locale String,
     timezone String,
@@ -31,4 +31,19 @@ CREATE TABLE IF NOT EXISTS events (
     campaign_content Nullable(String)
 ) ENGINE = MergeTree()
 PARTITION BY toYYYYMM(timestamp)
-ORDER BY (project_id, event_name, timestamp);
+ORDER BY (project_id, event_name, timestamp)
+TTL timestamp + INTERVAL 12 MONTH;
+
+-- V2: Uncomment when raw event query latency requires pre-aggregation.
+-- This pre-aggregates daily event counts incrementally on every insert.
+--
+-- CREATE MATERIALIZED VIEW daily_event_counts
+-- ENGINE = SummingMergeTree()
+-- ORDER BY (project_id, event_name, date)
+-- AS SELECT
+--     project_id,
+--     event_name,
+--     toDate(timestamp) AS date,
+--     count()           AS event_count
+-- FROM events
+-- GROUP BY project_id, event_name, date;
