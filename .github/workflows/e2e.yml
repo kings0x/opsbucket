@@ -99,7 +99,12 @@ jobs:
 
       - name: Apply ClickHouse schema
         run: |
-          docker exec ${{ job.services.clickhouse.id }} clickhouse-client --multiquery < infra/clickhouse/schema.sql
+          curl -s -u "default:opsbucket" "http://localhost:8123/?readonly=0" \
+            --data-binary @infra/clickhouse/schema.sql
+          echo "Verifying events table exists..."
+          curl -s -u "default:opsbucket" "http://localhost:8123/" \
+            --data "SELECT count() FROM events"
+          echo ""
 
       - name: Build ingestion
         working-directory: services
@@ -139,10 +144,4 @@ jobs:
 
       - name: Run test scenarios
         run: |
-          bash tests/e2e/scenarios.sh || true
-          # Debug: show processing logs and clickhouse state
-          echo "=== Processing logs (tail 50) ==="
-          curl -s -u "default:opsbucket" "http://localhost:8123/?readonly=0" --data "SELECT count() FROM events" 2>/dev/null || echo "CH query failed"
-          echo ""
-          echo "=== Re-run test scenarios with debug ==="
-          bash -x tests/e2e/scenarios.sh 2>&1 | head -200 || true
+          bash tests/e2e/scenarios.sh
