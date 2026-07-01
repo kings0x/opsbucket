@@ -26,8 +26,8 @@ pub fn flatten(event: TimestampedEvent) -> ClickHouseRow {
         timestamp: event.timestamp.timestamp() as u32,
         received_at: parse_dt(&event.event.received_at).timestamp() as u32,
         original_timestamp: parse_dt(&event.event.original_timestamp).timestamp() as u32,
-        properties,
-        traits,
+        properties: properties.into_iter().collect(),
+        traits: traits.into_iter().collect(),
         user_agent: ctx.user_agent.clone(),
         locale: ctx.locale.clone(),
         timezone: ctx.timezone.clone(),
@@ -230,6 +230,14 @@ mod tests {
         assert_eq!(row.event_name, "Identify");
     }
 
+    fn assert_property(properties: &[(String, String)], key: &str, expected: &str) {
+        let val = properties
+            .iter()
+            .find(|(k, _)| k == key)
+            .unwrap_or_else(|| panic!("key {key} not found in properties"));
+        assert_eq!(val.1, expected);
+    }
+
     #[test]
     fn track_properties_are_preserved() {
         let raw = make_raw_event(
@@ -240,9 +248,9 @@ mod tests {
         );
         let ts = correct(vec![raw]).unwrap();
         let row = flatten(ts.into_iter().next().unwrap());
-        assert_eq!(row.properties.get("button_text").unwrap(), "Sign Up");
-        assert_eq!(row.properties.get("count").unwrap(), "42");
-        assert_eq!(row.properties.get("active").unwrap(), "true");
+        assert_property(&row.properties, "button_text", "Sign Up");
+        assert_property(&row.properties, "count", "42");
+        assert_property(&row.properties, "active", "true");
     }
 
     #[test]
@@ -255,8 +263,8 @@ mod tests {
         );
         let ts = correct(vec![raw]).unwrap();
         let row = flatten(ts.into_iter().next().unwrap());
-        assert_eq!(row.properties.get("email").unwrap(), "jane@example.com");
-        assert_eq!(row.properties.get("plan").unwrap(), "pro");
+        assert_property(&row.properties, "email", "jane@example.com");
+        assert_property(&row.properties, "plan", "pro");
     }
 
     #[test]
@@ -269,11 +277,8 @@ mod tests {
         );
         let ts = correct(vec![raw]).unwrap();
         let row = flatten(ts.into_iter().next().unwrap());
-        assert_eq!(
-            row.properties.get("url").unwrap(),
-            "https://example.com/page"
-        );
-        assert_eq!(row.properties.get("custom_prop").unwrap(), "custom_val");
+        assert_property(&row.properties, "url", "https://example.com/page");
+        assert_property(&row.properties, "custom_prop", "custom_val");
     }
 
     #[test]
