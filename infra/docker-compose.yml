@@ -1,5 +1,6 @@
 services:
   redpanda:
+    container_name: redpanda
     image: docker.redpanda.com/redpandadata/redpanda:latest
     command:
       - redpanda start
@@ -13,6 +14,7 @@ services:
       - "9644:9644"
 
   postgres:
+    container_name: postgres
     image: postgres:16
     environment:
       POSTGRES_USER: opsbucket
@@ -24,11 +26,13 @@ services:
       - pgdata:/var/lib/postgresql/data
 
   redis:
+    container_name: redis
     image: redis:7-alpine
     ports:
       - "6379:6379"
 
   clickhouse:
+    container_name: clickhouse
     image: clickhouse/clickhouse-server:24.3
     environment:
       CLICKHOUSE_USER: default

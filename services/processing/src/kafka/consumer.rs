@@ -5,8 +5,8 @@ use anyhow::Result;
 use clickhouse::Client as ChClient;
 use opsbucket_shared::events::RawEvent;
 use rdkafka::consumer::{CommitMode, Consumer, StreamConsumer};
-use rdkafka::{ClientConfig, Offset, TopicPartitionList};
 use rdkafka::Message;
+use rdkafka::{ClientConfig, Offset, TopicPartitionList};
 use redis::aio::ConnectionManager as RedisConnectionManager;
 use sqlx::PgPool;
 use tracing::{error, info, warn};
@@ -55,6 +55,7 @@ impl ProcessingConsumer {
             .set("enable.auto.commit", "false")
             .set("session.timeout.ms", "30000")
             .set("max.poll.interval.ms", "300000")
+            .set("allow.auto.create.topics", "true")
             .create()?;
 
         consumer.subscribe(&["raw-events"])?;
@@ -159,6 +160,17 @@ impl ProcessingConsumer {
         }
 
         if messages.is_empty() {
+            if !partition_offsets.is_empty() {
+                let mut tpl = TopicPartitionList::new();
+                for (partition, offset) in &partition_offsets {
+                    tpl.add_partition_offset("raw-events", *partition, Offset::Offset(*offset + 1))?;
+                }
+                info!(
+                    offsets = ?partition_offsets,
+                    "committing offsets after DLQ-only batch"
+                );
+                self.consumer.commit(&tpl, CommitMode::Sync)?;
+            }
             return Ok(false);
         }
 

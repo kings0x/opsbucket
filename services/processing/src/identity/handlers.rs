@@ -180,5 +180,4 @@ mod tests {
             .unwrap();
         assert!(cached.is_none());
     }
-
 }
