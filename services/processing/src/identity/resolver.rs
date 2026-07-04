@@ -63,6 +63,10 @@ async fn lookup_alias(
 mod tests {
     use super::*;
     use redis::Client;
+    use sqlx::postgres::PgPoolOptions;
+
+    const PG_URL: &str = "postgres://opsbucket:opsbucket@127.0.0.1:5432/opsbucket";
+    const REDIS_URL: &str = "redis://127.0.0.1:6379";
 
     fn make_event(anonymous_id: &str) -> RawEvent {
         RawEvent {
@@ -116,14 +120,16 @@ mod tests {
         let mut event = make_event("anon_1");
         event.user_id = Some("usr_1".into());
 
-        let client = Client::open("redis://localhost:6379").unwrap();
+        let client = Client::open(REDIS_URL).unwrap();
         let mut redis = ConnectionManager::new(client).await.unwrap();
         redis::cmd("FLUSHDB")
             .query_async::<()>(&mut redis)
             .await
             .unwrap();
 
-        let pg = PgPool::connect("postgres://opsbucket:opsbucket@localhost:5432/opsbucket")
+        let pg = PgPoolOptions::new()
+            .max_connections(5)
+            .connect(PG_URL)
             .await
             .unwrap();
         sqlx::query("DELETE FROM identity_aliases WHERE project_id = 'proj_1'")
@@ -139,14 +145,16 @@ mod tests {
     async fn no_alias_returns_none() {
         let event = make_event("anon_unknown");
 
-        let client = Client::open("redis://localhost:6379").unwrap();
+        let client = Client::open(REDIS_URL).unwrap();
         let mut redis = ConnectionManager::new(client).await.unwrap();
         redis::cmd("FLUSHDB")
             .query_async::<()>(&mut redis)
             .await
             .unwrap();
 
-        let pg = PgPool::connect("postgres://opsbucket:opsbucket@localhost:5432/opsbucket")
+        let pg = PgPoolOptions::new()
+            .max_connections(5)
+            .connect(PG_URL)
             .await
             .unwrap();
         sqlx::query("DELETE FROM identity_aliases WHERE project_id = 'proj_1'")

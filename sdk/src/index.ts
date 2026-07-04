@@ -24,7 +24,7 @@ export function init(writeKey: string, options?: Partial<Config>): void {
   const config: Config = { endpoint: 'https://ingest.opsbucket.io', ...options }
   storage = new Storage(config)
   transport = new Transport(writeKey, config)
-  batcher = new Batcher(config, storage, (batch) => transport!.send(batch))
+  batcher = new Batcher(config, storage, (batch, useBeacon) => transport!.send(batch, useBeacon))
   initialized = true
 
   if (config.autocapture !== false) {
@@ -84,7 +84,6 @@ export function page(name?: string, properties?: Record<string, unknown>): void 
 export function reset(): void {
   if (!storage || !batcher) return
 
-  batcher.flush()
   storage.reset()
 }
 

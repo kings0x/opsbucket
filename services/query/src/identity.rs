@@ -8,6 +8,11 @@ pub async fn patch_identity(
     mut events: Vec<EventRow>,
     pg: &PgPool,
 ) -> Result<Vec<EventRow>, anyhow::Error> {
+    let project_id = match events.first() {
+        Some(event) => event.project_id.clone(),
+        None => return Ok(events),
+    };
+
     let unresolved: Vec<&str> = events
         .iter()
         .filter(|e| e.user_id.is_none())
@@ -21,8 +26,9 @@ pub async fn patch_identity(
     let aliases = sqlx::query_as::<_, IdentityAlias>(
         "SELECT project_id, anonymous_id, user_id
          FROM identity_aliases
-         WHERE anonymous_id = ANY($1)",
+         WHERE project_id = $1 AND anonymous_id = ANY($2)",
     )
+    .bind(&project_id)
     .bind(&unresolved)
     .fetch_all(pg)
     .await?;

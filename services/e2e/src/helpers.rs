@@ -8,7 +8,9 @@ use serde_json::{json, Value};
 use tokio::time::sleep;
 use tracing::info;
 
-use crate::{INGEST_PORT, PG_CONTAINER, QUERY_PORT, SECRET_KEY, WRITE_KEY};
+use crate::{
+    CLICKHOUSE_URL, HOST_LOOPBACK, INGEST_PORT, PG_CONTAINER, QUERY_PORT, SECRET_KEY, WRITE_KEY,
+};
 
 // ── Docker helpers ─────────────────────────────────────────────────
 
@@ -28,11 +30,7 @@ pub(crate) fn docker_exec(container: &str, cmd: &[&str]) -> Result<String> {
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
 
-pub(crate) fn docker_exec_stdin(
-    container: &str,
-    cmd: &[&str],
-    stdin_data: &str,
-) -> Result<String> {
+pub(crate) fn docker_exec_stdin(container: &str, cmd: &[&str], stdin_data: &str) -> Result<String> {
     let mut child = Command::new("docker")
         .arg("exec")
         .arg("-i")
@@ -61,11 +59,7 @@ pub(crate) fn cargo_run(
     _args: &[&str],
     envs: &[(&str, &str)],
 ) -> Result<std::process::Child> {
-    let binary_path = format!(
-        "{}\\target\\debug\\{}.exe",
-        crate::SERVICES_DIR,
-        package
-    );
+    let binary_path = format!("{}\\target\\debug\\{}.exe", crate::SERVICES_DIR, package);
     let mut cmd = Command::new(&binary_path);
     cmd.stdout(Stdio::inherit()).stderr(Stdio::inherit());
     for (k, v) in envs {
@@ -163,7 +157,10 @@ pub(crate) async fn wait_for_container(
 // ── Query helpers ─────────────────────────────────────────────────
 
 pub(crate) async fn ch_query(sql: &str) -> Result<String> {
-    let url = "http://default:opsbucket@localhost:8123/?readonly=0".to_string();
+    let url = format!(
+        "{}?user=default&password=opsbucket&readonly=0",
+        CLICKHOUSE_URL
+    );
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(10))
         .build()?;
@@ -191,7 +188,7 @@ pub(crate) fn pg_query(sql: &str) -> Result<String> {
 pub(crate) async fn send_ingest(batch: &Value) -> Value {
     let client = reqwest::Client::new();
     let resp = match client
-        .post(&format!("http://localhost:{}/v1/batch", INGEST_PORT))
+        .post(format!("http://{}:{}/v1/batch", HOST_LOOPBACK, INGEST_PORT))
         .header("Authorization", format!("Bearer {}", WRITE_KEY))
         .header("Content-Type", "application/json")
         .json(batch)
@@ -207,7 +204,7 @@ pub(crate) async fn send_ingest(batch: &Value) -> Value {
 pub(crate) async fn send_ingest_raw(batch: &Value, key: &str) -> Result<Value> {
     let client = reqwest::Client::new();
     let resp = client
-        .post(&format!("http://localhost:{}/v1/batch", INGEST_PORT))
+        .post(format!("http://{}:{}/v1/batch", HOST_LOOPBACK, INGEST_PORT))
         .header("Authorization", format!("Bearer {}", key))
         .header("Content-Type", "application/json")
         .json(batch)
@@ -219,7 +216,7 @@ pub(crate) async fn send_ingest_raw(batch: &Value, key: &str) -> Result<Value> {
 pub(crate) async fn query_service_get(path: &str) -> Result<(u16, Value)> {
     let client = reqwest::Client::new();
     let resp = client
-        .get(&format!("http://localhost:{}{}", QUERY_PORT, path))
+        .get(format!("http://{}:{}{}", HOST_LOOPBACK, QUERY_PORT, path))
         .header("Authorization", format!("Bearer {}", SECRET_KEY))
         .send()
         .await?;
@@ -231,7 +228,7 @@ pub(crate) async fn query_service_get(path: &str) -> Result<(u16, Value)> {
 pub(crate) async fn query_service_post(path: &str, body: &Value) -> Result<(u16, Value)> {
     let client = reqwest::Client::new();
     let resp = client
-        .post(&format!("http://localhost:{}{}", QUERY_PORT, path))
+        .post(format!("http://{}:{}{}", HOST_LOOPBACK, QUERY_PORT, path))
         .header("Authorization", format!("Bearer {}", SECRET_KEY))
         .header("Content-Type", "application/json")
         .json(body)
@@ -242,14 +239,10 @@ pub(crate) async fn query_service_post(path: &str, body: &Value) -> Result<(u16,
     Ok((status, body_val))
 }
 
-pub(crate) async fn query_service_post_status(
-    path: &str,
-    body: &Value,
-    key: &str,
-) -> Result<u16> {
+pub(crate) async fn query_service_post_status(path: &str, body: &Value, key: &str) -> Result<u16> {
     let client = reqwest::Client::new();
     let resp = client
-        .post(&format!("http://localhost:{}{}", QUERY_PORT, path))
+        .post(format!("http://{}:{}{}", HOST_LOOPBACK, QUERY_PORT, path))
         .header("Authorization", format!("Bearer {}", key))
         .header("Content-Type", "application/json")
         .json(body)

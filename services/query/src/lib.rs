@@ -188,19 +188,23 @@ pub struct SegmentResponse {
     pub users: Vec<String>,
     pub total: u64,
     pub truncated: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cached_at: Option<String>,
 }
 
 #[derive(Debug, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EventsResponse {
     pub events: Vec<EventRow>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "next_cursor", skip_serializing_if = "Option::is_none")]
     pub next_cursor: Option<String>,
 }
 
 #[derive(Debug, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EventRow {
+    #[serde(skip_serializing)]
+    pub project_id: String,
     pub event_id: String,
     pub event_name: String,
     pub anonymous_id: String,
@@ -239,6 +243,7 @@ pub struct SegmentRow {
 
 #[derive(Debug, Row, serde::Deserialize)]
 pub struct ClickHouseEventRow {
+    pub project_id: String,
     pub event_id: String,
     pub event_name: String,
     pub anonymous_id: String,

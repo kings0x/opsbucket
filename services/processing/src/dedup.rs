@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use anyhow::Result;
 use opsbucket_shared::events::RawEvent;
 use redis::aio::ConnectionManager;
@@ -5,28 +7,39 @@ use redis::aio::ConnectionManager;
 pub async fn filter(
     batch: Vec<RawEvent>,
     redis: &mut ConnectionManager,
-    ttl_seconds: u64,
+    _ttl_seconds: u64,
 ) -> Result<Vec<RawEvent>> {
     let mut out = Vec::with_capacity(batch.len());
+    let mut seen_in_batch = HashSet::new();
     for event in batch {
         let key = format!("seen:{}", event.message_id);
-        let is_new: bool = redis::cmd("SETNX")
+        let already_seen: bool = redis::cmd("EXISTS")
             .arg(&key)
-            .arg("1")
             .query_async::<i64>(redis)
             .await
-            .map(|r| r == 1)
-            .unwrap_or(false);
-        if is_new {
-            redis::cmd("EXPIRE")
-                .arg(&key)
-                .arg(ttl_seconds as i64)
-                .query_async::<()>(redis)
-                .await?;
+            .map(|r| r > 0)?;
+        if !already_seen && seen_in_batch.insert(event.message_id.clone()) {
             out.push(event);
         }
     }
     Ok(out)
+}
+
+pub async fn mark_processed(
+    events: &[RawEvent],
+    redis: &mut ConnectionManager,
+    ttl_seconds: u64,
+) -> Result<()> {
+    for event in events {
+        let key = format!("seen:{}", event.message_id);
+        redis::cmd("SETEX")
+            .arg(&key)
+            .arg(ttl_seconds as i64)
+            .arg("1")
+            .query_async::<()>(redis)
+            .await?;
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -36,7 +49,7 @@ mod tests {
     use redis::Client;
 
     async fn test_redis() -> ConnectionManager {
-        let client = Client::open("redis://localhost:6379").unwrap();
+        let client = Client::open("redis://127.0.0.1:6379").unwrap();
         let mut conn = ConnectionManager::new(client).await.unwrap();
         redis::cmd("FLUSHDB")
             .query_async::<()>(&mut conn)
@@ -98,6 +111,7 @@ mod tests {
         let events = vec![make_event("msg_kept")];
         let result = filter(events, &mut redis, 3600).await.unwrap();
         assert_eq!(result.len(), 1);
+        mark_processed(&result, &mut redis, 3600).await.unwrap();
     }
 
     #[tokio::test]
@@ -106,6 +120,7 @@ mod tests {
         let e = make_event("msg_dedup");
         let first = filter(vec![e.clone()], &mut redis, 3600).await.unwrap();
         assert_eq!(first.len(), 1);
+        mark_processed(&first, &mut redis, 3600).await.unwrap();
         let second = filter(vec![e], &mut redis, 3600).await.unwrap();
         assert_eq!(second.len(), 0);
     }
@@ -116,5 +131,15 @@ mod tests {
         let events = vec![make_event("msg_diff1"), make_event("msg_diff2")];
         let result = filter(events, &mut redis, 3600).await.unwrap();
         assert_eq!(result.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn duplicate_within_same_batch_is_dropped() {
+        let mut redis = test_redis().await;
+        let event = make_event("msg_same_batch");
+        let result = filter(vec![event.clone(), event], &mut redis, 3600)
+            .await
+            .unwrap();
+        assert_eq!(result.len(), 1);
     }
 }

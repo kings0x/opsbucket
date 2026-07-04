@@ -194,37 +194,33 @@ describe('Transport', () => {
       vi.useRealTimers()
     })
 
-    it('5xx: gives up after 5 attempts and drops batch', async () => {
+    it('5xx: rejects after 5 attempts so the batch can be retried later', async () => {
       vi.useFakeTimers()
       fetchMock.mockResolvedValue({ status: 500, headers: new Headers() })
-      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
 
       const sendPromise = transport.send(makeBatch())
+      const assertion = expect(sendPromise).rejects.toThrow('500 Server error after max retries')
       for (let i = 0; i < 5; i++) {
         await vi.advanceTimersToNextTimerAsync()
       }
-      await sendPromise
+      await assertion
 
       expect(fetchMock).toHaveBeenCalledTimes(6)
-      expect(errorSpy).toHaveBeenCalled()
-      errorSpy.mockRestore()
       vi.useRealTimers()
     })
 
-    it('429: gives up after 5 attempts and drops batch', async () => {
+    it('429: rejects after 5 attempts so the batch can be retried later', async () => {
       vi.useFakeTimers()
       fetchMock.mockResolvedValue({ status: 429, headers: new Headers() })
-      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
 
       const sendPromise = transport.send(makeBatch())
+      const assertion = expect(sendPromise).rejects.toThrow('429 Rate limited after max retries')
       for (let i = 0; i < 5; i++) {
         await vi.advanceTimersToNextTimerAsync()
       }
-      await sendPromise
+      await assertion
 
       expect(fetchMock).toHaveBeenCalledTimes(6)
-      expect(errorSpy).toHaveBeenCalled()
-      errorSpy.mockRestore()
       vi.useRealTimers()
     })
   })
@@ -244,20 +240,18 @@ describe('Transport', () => {
       vi.useRealTimers()
     })
 
-    it('gives up after 5 network errors and drops batch', async () => {
+    it('rejects after 5 network errors so the batch can be retried later', async () => {
       vi.useFakeTimers()
       fetchMock.mockRejectedValue(new Error('Network failure'))
-      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
 
       const sendPromise = transport.send(makeBatch())
+      const assertion = expect(sendPromise).rejects.toThrow('Network error after max retries')
       for (let i = 0; i < 5; i++) {
         await vi.advanceTimersToNextTimerAsync()
       }
-      await sendPromise
+      await assertion
 
       expect(fetchMock).toHaveBeenCalledTimes(6)
-      expect(errorSpy).toHaveBeenCalled()
-      errorSpy.mockRestore()
       vi.useRealTimers()
     })
   })

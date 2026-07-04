@@ -28,17 +28,19 @@ fn extract_write_key(headers: &HeaderMap, query: &BatchQuery) -> Option<String> 
     query.write_key.clone()
 }
 
-fn extract_ip(headers: &HeaderMap) -> String {
-    if let Some(fwd) = headers.get("x-forwarded-for").and_then(|v| v.to_str().ok()) {
-        if let Some(ip) = fwd.split(',').next().map(|s| s.trim()) {
-            if !ip.is_empty() {
-                return ip.to_string();
+fn extract_ip(headers: &HeaderMap, trust_proxy_headers: bool) -> String {
+    if trust_proxy_headers {
+        if let Some(fwd) = headers.get("x-forwarded-for").and_then(|v| v.to_str().ok()) {
+            if let Some(ip) = fwd.split(',').next().map(|s| s.trim()) {
+                if !ip.is_empty() {
+                    return ip.to_string();
+                }
             }
         }
-    }
-    if let Some(real_ip) = headers.get("x-real-ip").and_then(|v| v.to_str().ok()) {
-        if !real_ip.is_empty() {
-            return real_ip.to_string();
+        if let Some(real_ip) = headers.get("x-real-ip").and_then(|v| v.to_str().ok()) {
+            if !real_ip.is_empty() {
+                return real_ip.to_string();
+            }
         }
     }
     "0.0.0.0".to_string()
@@ -104,16 +106,23 @@ pub async fn post_batch(
     }
 
     let project_id = match state.auth.validate(&write_key_str).await {
-        Some(pid) => pid,
-        None => {
+        Ok(Some(pid)) => pid,
+        Ok(None) => {
             return json_response(
                 StatusCode::UNAUTHORIZED,
                 json!({"error": "invalid_write_key"}),
             );
         }
+        Err(e) => {
+            tracing::error!(error = %e, "write key validation failed");
+            return json_response(
+                StatusCode::SERVICE_UNAVAILABLE,
+                json!({"error": "auth_unavailable"}),
+            );
+        }
     };
 
-    tracing::debug!(write_key = %write_key_str, project_id = %project_id, "write key validated");
+    tracing::debug!(project_id = %project_id, "write key validated");
 
     let payload: BatchPayload = match serde_json::from_slice(&bytes) {
         Ok(p) => p,
@@ -133,7 +142,7 @@ pub async fn post_batch(
         return json_response(status, body);
     }
 
-    let ip = extract_ip(&headers);
+    let ip = extract_ip(&headers, state.trust_proxy_headers);
 
     let raw_events = stamp_events(payload.batch, &project_id, &payload.sent_at, &ip);
 
@@ -164,6 +173,20 @@ fn validation_to_status(err: &ValidationError) -> (StatusCode, serde_json::Value
                 "error": "batch_too_large",
                 "max_events": max_events,
                 "max_bytes": 1_048_576,
+            }),
+        ),
+        ValidationError::EmptyBatch => (
+            StatusCode::BAD_REQUEST,
+            json!({
+                "error": "validation_failed",
+                "detail": "batch must contain at least one event",
+            }),
+        ),
+        ValidationError::InvalidSentAt { message } => (
+            StatusCode::BAD_REQUEST,
+            json!({
+                "error": "validation_failed",
+                "detail": message,
             }),
         ),
         ValidationError::InvalidEvent { index, message } => (

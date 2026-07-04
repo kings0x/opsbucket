@@ -40,8 +40,7 @@ export class Transport {
         await this.backoff(attempt)
         return this.sendWithRetry(batch, attempt + 1)
       }
-      this.dropBatch(batch, 'Network error after max retries')
-      return
+      throw new Error('Network error after max retries')
     }
 
     if (response.status === 200) {
@@ -77,8 +76,7 @@ export class Transport {
         await this.delay(retryAfter)
         return this.sendWithRetry(batch, attempt + 1)
       }
-      this.dropBatch(batch, '429 Rate limited after max retries')
-      return
+      throw new Error('429 Rate limited after max retries')
     }
 
     if (response.status >= 500) {
@@ -86,15 +84,14 @@ export class Transport {
         await this.backoff(attempt)
         return this.sendWithRetry(batch, attempt + 1)
       }
-      this.dropBatch(batch, `${response.status} Server error after max retries`)
-      return
+      throw new Error(`${response.status} Server error after max retries`)
     }
 
     if (attempt < MAX_RETRIES) {
       await this.backoff(attempt)
       return this.sendWithRetry(batch, attempt + 1)
     }
-    this.dropBatch(batch, `${response.status} Unexpected status after max retries`)
+    throw new Error(`${response.status} Unexpected status after max retries`)
   }
 
   private sendBeacon(batch: BatchPayload): void {

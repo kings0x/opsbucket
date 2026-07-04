@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use axum::body::Bytes;
 use axum::extract::State;
 use axum::http::HeaderMap;
 use axum::Json;
@@ -13,17 +14,21 @@ use crate::{AppError, AppState, FunnelResponse, FunnelRow, FunnelSpec, FunnelSte
 pub async fn handler(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(spec): Json<FunnelSpec>,
+    body: Bytes,
 ) -> Result<Json<FunnelResponse>, AppError> {
     check_auth(&headers, &state.secret_key).map_err(AppError::unauthorized)?;
-    builder::validate_funnel(&spec).map_err(AppError::invalid_request)?;
+    let spec: FunnelSpec = serde_json::from_slice(&body)
+        .map_err(|_| AppError::invalid_request("request body is empty or malformed".into()))?;
+    builder::validate_funnel_with_max_date_range(&spec, state.config.max_date_range_days)
+        .map_err(AppError::invalid_request)?;
 
     let cache_key = cache::cache_key(&spec);
     let mut redis = state.redis.clone();
-    if let Some(cached) = cache::get::<FunnelResponse>(&mut redis, &cache_key)
+    if let Some(mut cached) = cache::get::<FunnelResponse>(&mut redis, &cache_key)
         .await
         .map_err(AppError::from_anyhow)?
     {
+        cached.cached_at = Some(chrono::Utc::now().to_rfc3339());
         return Ok(Json(cached));
     }
 

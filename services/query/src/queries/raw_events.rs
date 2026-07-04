@@ -6,6 +6,7 @@ pub fn build(
     project_id: &str,
     event_name: Option<&str>,
     user_id: Option<&str>,
+    alias_anonymous_ids: &[String],
     cursor: Option<&Cursor>,
     limit: u64,
 ) -> String {
@@ -24,17 +25,25 @@ pub fn build(
     };
 
     let user_filter = match user_id {
-        Some(uid) => format!(
-            "(user_id = '{}' OR anonymous_id = '{}')",
-            sql_escape(uid),
-            sql_escape(uid),
-        ),
+        Some(uid) => {
+            let mut identities = vec![format!("'{}'", sql_escape(uid))];
+            identities.extend(
+                alias_anonymous_ids
+                    .iter()
+                    .map(|id| format!("'{}'", sql_escape(id))),
+            );
+            format!(
+                "(user_id = '{}' OR anonymous_id IN ({}))",
+                sql_escape(uid),
+                identities.join(", "),
+            )
+        }
         None => "1 = 1".to_string(),
     };
 
     format!(
         "SELECT
-    event_id, event_name, anonymous_id, user_id,
+    project_id, event_id, event_name, anonymous_id, user_id,
     timestamp, page_url, page_referrer, user_agent, properties
 FROM events
 WHERE project_id = '{}'

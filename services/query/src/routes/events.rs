@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use crate::auth::secret_key::check_auth;
 use crate::ch::client;
 use crate::identity;
-use crate::queries::raw_events;
+use crate::queries::{builder, raw_events};
 use crate::{AppError, AppState, ClickHouseEventRow, EventRow, EventsResponse};
 
 #[derive(Deserialize)]
@@ -32,16 +32,46 @@ pub async fn handler(
 ) -> Result<Json<EventsResponse>, AppError> {
     check_auth(&headers, &state.secret_key).map_err(AppError::unauthorized)?;
 
-    let limit = params.limit.unwrap_or(50).min(200);
+    builder::validate_string(&params.project_id, "projectId").map_err(AppError::invalid_request)?;
+    if let Some(event_name) = params.event_name.as_deref() {
+        builder::validate_string(event_name, "eventName").map_err(AppError::invalid_request)?;
+    }
+    if let Some(user_id) = params.user_id.as_deref() {
+        builder::validate_string(user_id, "userId").map_err(AppError::invalid_request)?;
+    }
+    let limit = match params.limit {
+        Some(limit @ 1..=200) => limit,
+        Some(_) => {
+            return Err(AppError::invalid_request(
+                "limit must be between 1 and 200".into(),
+            ));
+        }
+        None => 50,
+    };
     let cursor = match &params.cursor {
         Some(c) => Some(raw_events::decode_cursor(c).map_err(AppError::invalid_request)?),
         None => None,
+    };
+
+    let alias_anonymous_ids = match params.user_id.as_deref() {
+        Some(user_id) => sqlx::query_scalar::<_, String>(
+            "SELECT anonymous_id
+             FROM identity_aliases
+             WHERE project_id = $1 AND user_id = $2",
+        )
+        .bind(&params.project_id)
+        .bind(user_id)
+        .fetch_all(&state.pg)
+        .await
+        .map_err(|e| AppError::from_anyhow(e.into()))?,
+        None => Vec::new(),
     };
 
     let sql = raw_events::build(
         &params.project_id,
         params.event_name.as_deref(),
         params.user_id.as_deref(),
+        &alias_anonymous_ids,
         cursor.as_ref(),
         limit,
     );
@@ -54,9 +84,9 @@ pub async fn handler(
     let mut events: Vec<EventRow> = ch_rows
         .into_iter()
         .map(|r| {
-            let ts = chrono::DateTime::from_timestamp(r.timestamp as i64, 0)
-                .unwrap_or_default();
+            let ts = chrono::DateTime::from_timestamp(r.timestamp as i64, 0).unwrap_or_default();
             EventRow {
+                project_id: r.project_id,
                 event_id: r.event_id,
                 event_name: r.event_name,
                 anonymous_id: r.anonymous_id,

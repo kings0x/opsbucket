@@ -1,4 +1,5 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -8,8 +9,8 @@ use object_store::aws::AmazonS3Builder;
 use object_store::ObjectStore;
 use opsbucket_shared::events::RawEvent;
 use rdkafka::consumer::{CommitMode, Consumer, StreamConsumer};
-use rdkafka::{ClientConfig, Offset, TopicPartitionList};
 use rdkafka::Message;
+use rdkafka::{ClientConfig, Offset, TopicPartitionList};
 use tracing::{error, info, warn};
 
 use crate::storage;
@@ -78,9 +79,13 @@ impl ArchiverConsumer {
     }
 
     pub async fn run(&mut self) -> Result<()> {
+        self.run_until(Arc::new(AtomicBool::new(true))).await
+    }
+
+    pub async fn run_until(&mut self, running: Arc<AtomicBool>) -> Result<()> {
         info!("archiver consumer started");
 
-        loop {
+        while self.running && running.load(Ordering::SeqCst) {
             match self.process_batch().await {
                 Ok(true) => {}
                 Ok(false) => {
@@ -90,10 +95,6 @@ impl ArchiverConsumer {
                     error!(error = %e, "batch processing failed, retrying after backoff");
                     tokio::time::sleep(Duration::from_secs(5)).await;
                 }
-            }
-
-            if !self.running {
-                break;
             }
         }
 
@@ -112,6 +113,9 @@ impl ArchiverConsumer {
                 break;
             }
             if self.buffer.len() >= self.batch_size {
+                break;
+            }
+            if self.estimate_buffer_size() >= self.max_file_size {
                 break;
             }
 
@@ -145,10 +149,7 @@ impl ArchiverConsumer {
             return Ok(false);
         }
 
-        if self.buffer.len() >= self.batch_size || self.estimate_buffer_size() >= self.max_file_size
-        {
-            self.flush().await?;
-        }
+        self.flush().await?;
 
         if !partition_offsets.is_empty() {
             let mut tpl = TopicPartitionList::new();
@@ -165,31 +166,42 @@ impl ArchiverConsumer {
         Ok(true)
     }
 
-    fn estimate_buffer_size(&self) -> usize {
-        self.buffer.len() * 1024
-    }
-
     async fn flush(&mut self) -> Result<()> {
         if self.buffer.is_empty() {
             return Ok(());
         }
 
-        let events = std::mem::take(&mut self.buffer);
-        let count = events.len();
-        info!(count, "flushing events to S3 archive");
+        let mut by_date: BTreeMap<String, Vec<RawEvent>> = BTreeMap::new();
+        for event in std::mem::take(&mut self.buffer) {
+            let dt = archive_date(&event);
+            by_date.entry(dt).or_default().push(event);
+        }
 
-        let now = Utc::now();
-        let dt = now.format("%Y-%m-%d").to_string();
-        let ts = now.format("%Y%m%d%H%M%S").to_string();
+        for (dt, events) in by_date {
+            let count = events.len();
+            info!(count, dt, "flushing events to S3 archive");
 
-        let parquet_bytes = storage::write_events_to_parquet(&events)?;
+            let ts = Utc::now().timestamp_millis();
+            let parquet_bytes = storage::write_events_to_parquet(&events)?;
 
-        let key = format!("{}/dt={}/part-{}.parquet", self.s3_prefix, dt, ts);
-        let path = object_store::path::Path::from(key.clone());
+            let key = format!("{}/dt={}/part-{}-{}.parquet", self.s3_prefix, dt, ts, count);
+            let path = object_store::path::Path::from(key.clone());
 
-        self.store.put(&path, parquet_bytes.into()).await?;
-        info!(key = %key, count, "archived events to S3");
+            self.store.put(&path, parquet_bytes.into()).await?;
+            info!(key = %key, count, "archived events to S3");
+        }
 
         Ok(())
     }
+
+    fn estimate_buffer_size(&self) -> usize {
+        self.buffer.len() * 1024
+    }
+}
+
+fn archive_date(event: &RawEvent) -> String {
+    chrono::DateTime::parse_from_rfc3339(&event.original_timestamp)
+        .or_else(|_| chrono::DateTime::parse_from_rfc3339(&event.received_at))
+        .map(|dt| dt.format("%Y-%m-%d").to_string())
+        .unwrap_or_else(|_| Utc::now().format("%Y-%m-%d").to_string())
 }

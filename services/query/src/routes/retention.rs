@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use axum::body::Bytes;
 use axum::extract::State;
 use axum::http::HeaderMap;
 use axum::Json;
@@ -15,17 +16,21 @@ use crate::{
 pub async fn handler(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(spec): Json<RetentionSpec>,
+    body: Bytes,
 ) -> Result<Json<RetentionResponse>, AppError> {
     check_auth(&headers, &state.secret_key).map_err(AppError::unauthorized)?;
-    builder::validate_retention(&spec).map_err(AppError::invalid_request)?;
+    let spec: RetentionSpec = serde_json::from_slice(&body)
+        .map_err(|_| AppError::invalid_request("request body is empty or malformed".into()))?;
+    builder::validate_retention_with_max_date_range(&spec, state.config.max_date_range_days)
+        .map_err(AppError::invalid_request)?;
 
     let cache_key = cache::cache_key(&spec);
     let mut redis = state.redis.clone();
-    if let Some(cached) = cache::get::<RetentionResponse>(&mut redis, &cache_key)
+    if let Some(mut cached) = cache::get::<RetentionResponse>(&mut redis, &cache_key)
         .await
         .map_err(AppError::from_anyhow)?
     {
+        cached.cached_at = Some(chrono::Utc::now().to_rfc3339());
         return Ok(Json(cached));
     }
 

@@ -53,6 +53,7 @@ impl Server {
             pg: Arc::new(pg),
             redis: Arc::new(redis),
             rate_limiter: std::sync::Mutex::new(rate_limiter),
+            trust_proxy_headers: self.config.trust_proxy_headers,
         });
 
         let app = Router::new()

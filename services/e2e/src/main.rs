@@ -16,6 +16,11 @@ pub(crate) const SERVICES_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "\\..\
 
 pub(crate) const INGEST_PORT: u16 = 8080;
 pub(crate) const QUERY_PORT: u16 = 8081;
+pub(crate) const HOST_LOOPBACK: &str = "127.0.0.1";
+pub(crate) const KAFKA_BROKERS: &str = "127.0.0.1:9092";
+pub(crate) const DATABASE_URL: &str = "postgres://opsbucket:opsbucket@127.0.0.1:5432/opsbucket";
+pub(crate) const REDIS_URL: &str = "redis://127.0.0.1:6379";
+pub(crate) const CLICKHOUSE_URL: &str = "http://127.0.0.1:8123";
 
 pub(crate) const WRITE_KEY: &str = "wk_test_valid_key_12345";
 pub(crate) const PROJECT_ID: &str = "proj_test";
@@ -141,10 +146,10 @@ async fn main() -> anyhow::Result<()> {
     println!("\n\x1b[1m── Phase 4: Start Services ──\x1b[0m\n");
     let (_ingest_guard, _processing_guard, _query_guard) = setup::start_services()?;
 
-    helpers::wait_for_port("localhost", INGEST_PORT, "Ingestion", 30).await?;
+    helpers::wait_for_port(HOST_LOOPBACK, INGEST_PORT, "Ingestion", 30).await?;
     info!("processing waiting 5s for initial poll...");
     sleep(Duration::from_secs(5)).await;
-    helpers::wait_for_port("localhost", QUERY_PORT, "Query Service", 30).await?;
+    helpers::wait_for_port(HOST_LOOPBACK, QUERY_PORT, "Query Service", 30).await?;
 
     // ── Phase 5: Test Scenarios ──
     println!("\n\x1b[1m── Phase 5: Test Scenarios ──\x1b[0m\n");

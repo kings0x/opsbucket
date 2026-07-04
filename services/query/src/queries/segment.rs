@@ -17,7 +17,10 @@ fn sql_op(op: &str) -> Result<&'static str, String> {
 
 fn sql_value(val: &serde_json::Value, op: &str) -> String {
     if op == "contains" {
-        format!("'%{}%'", sql_escape(val.to_string().trim_matches('"')))
+        format!(
+            "'%{}%'",
+            sql_escape(&like_escape(val.to_string().trim_matches('"')))
+        )
     } else {
         match val {
             serde_json::Value::String(s) => format!("'{}'", sql_escape(s)),
@@ -86,8 +89,9 @@ LIMIT {}",
 
 pub fn build(spec: &SegmentSpec) -> Result<(Vec<String>, u64), String> {
     let mut subqueries = Vec::new();
+    let subquery_limit = spec.limit.saturating_add(1);
     for cond in &spec.conditions {
-        let sql = build_condition(cond, &spec.project_id, spec.limit)?;
+        let sql = build_condition(cond, &spec.project_id, subquery_limit)?;
         subqueries.push(sql);
     }
     Ok((subqueries, spec.limit))
@@ -106,4 +110,10 @@ pub fn intersect(results: Vec<HashSet<String>>) -> HashSet<String> {
 
 fn sql_escape(s: &str) -> String {
     s.replace('\'', "\\'")
+}
+
+fn like_escape(s: &str) -> String {
+    s.replace('\\', "\\\\")
+        .replace('%', "\\%")
+        .replace('_', "\\_")
 }

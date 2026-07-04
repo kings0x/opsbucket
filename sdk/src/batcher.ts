@@ -13,11 +13,16 @@ export class Batcher {
   private queue: AnyEvent[] = []
   private config: Config
   private storage: Storage
-  private onFlush: (batch: BatchPayload) => Promise<void>
+  private onFlush: (batch: BatchPayload, useBeacon?: boolean) => Promise<void>
   private intervalId: ReturnType<typeof setInterval> | null = null
   private handleVisibilityChange: (() => void) | null = null
+  private handleBeforeUnload: (() => void) | null = null
 
-  constructor(config: Config, storage: Storage, onFlush: (batch: BatchPayload) => Promise<void>) {
+  constructor(
+    config: Config,
+    storage: Storage,
+    onFlush: (batch: BatchPayload, useBeacon?: boolean) => Promise<void>,
+  ) {
     this.config = config
     this.storage = storage
     this.onFlush = onFlush
@@ -27,6 +32,11 @@ export class Batcher {
   }
 
   push(event: AnyEvent): void {
+    const maxBytes = this.config.maxBatchBytes ?? DEFAULTS.maxBatchBytes
+    if (this.queue.length > 0 && serializedSize([...this.queue, event]) >= maxBytes) {
+      this.flush()
+    }
+
     const maxSize = this.config.maxQueueSize ?? DEFAULTS.maxQueueSize
     if (this.queue.length >= maxSize) {
       const dropped = this.queue.shift()!
@@ -45,13 +55,12 @@ export class Batcher {
       return
     }
 
-    const maxBytes = this.config.maxBatchBytes ?? DEFAULTS.maxBatchBytes
     if (serializedSize(this.queue) >= maxBytes) {
       this.flush()
     }
   }
 
-  flush(): BatchPayload | null {
+  flush(useBeacon: boolean = false): BatchPayload | null {
     if (this.queue.length === 0) return null
     const events = this.queue.splice(0)
     this.storage.saveQueue(this.queue as unknown[])
@@ -59,8 +68,9 @@ export class Batcher {
       sentAt: new Date().toISOString(),
       batch: events,
     }
-    this.onFlush(batch).catch(() => {
-      // Transport error is handled by transport layer; events were already drained
+    this.onFlush(batch, useBeacon).catch(() => {
+      this.queue = [...events, ...this.queue]
+      this.storage.saveQueue(this.queue as unknown[])
     })
     return batch
   }
@@ -99,16 +109,24 @@ export class Batcher {
   private listenForUnload(): void {
     this.handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden') {
-        this.flush()
+        this.flush(true)
       }
     }
+    this.handleBeforeUnload = () => {
+      this.flush(true)
+    }
     document.addEventListener('visibilitychange', this.handleVisibilityChange)
+    window.addEventListener('beforeunload', this.handleBeforeUnload)
   }
 
   private teardownUnload(): void {
     if (this.handleVisibilityChange) {
       document.removeEventListener('visibilitychange', this.handleVisibilityChange)
       this.handleVisibilityChange = null
+    }
+    if (this.handleBeforeUnload) {
+      window.removeEventListener('beforeunload', this.handleBeforeUnload)
+      this.handleBeforeUnload = null
     }
   }
 }

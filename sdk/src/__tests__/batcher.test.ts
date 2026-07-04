@@ -115,6 +115,17 @@ describe('Batcher', () => {
       expect(onFlush).toHaveBeenCalledTimes(1)
       const payload = onFlush.mock.calls[0][0] as BatchPayload
       expect(payload.batch).toHaveLength(2)
+      expect(onFlush.mock.calls[0][1]).toBe(true)
+    })
+
+    it('flushes with sendBeacon mode on beforeunload', () => {
+      batcher = new Batcher({}, storage, makeOnFlush())
+
+      batcher.push(makeEvent())
+      window.dispatchEvent(new Event('beforeunload'))
+
+      expect(onFlush).toHaveBeenCalledTimes(1)
+      expect(onFlush.mock.calls[0][1]).toBe(true)
     })
   })
 
@@ -211,6 +222,22 @@ describe('Batcher', () => {
     it('returns null when queue is empty', () => {
       batcher = new Batcher({}, storage, makeOnFlush())
       expect(batcher.flush()).toBeNull()
+    })
+
+    it('restores drained events when transport rejects', async () => {
+      onFlush = vi.fn().mockRejectedValue(new Error('network down'))
+      batcher = new Batcher({ flushAt: 100 }, storage, makeOnFlush())
+
+      batcher.push(makeEvent({ event: 'restore_1' }))
+      batcher.push(makeEvent({ event: 'restore_2' }))
+
+      batcher.flush()
+      const flushPromise = onFlush.mock.results[0].value as Promise<void>
+      await flushPromise.catch(() => undefined)
+      await Promise.resolve()
+
+      expect(batcher.length).toBe(2)
+      expect(storage.loadQueue()).toHaveLength(2)
     })
   })
 })

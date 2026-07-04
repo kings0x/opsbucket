@@ -10,7 +10,7 @@ use crate::helpers::{
     ch_query, pg_query, query_service_get, query_service_post, query_service_post_status,
     send_ingest, send_ingest_raw, wait_for_event_id, wait_for_events,
 };
-use crate::{pass, fail, PROJECT_ID, RP_CONTAINER, SECRET_KEY, TIMEOUT_SECS};
+use crate::{fail, pass, PROJECT_ID, RP_CONTAINER, SECRET_KEY, TIMEOUT_SECS};
 
 // ── Scenarios: Core Pipeline ───────────────────────────────────────
 
@@ -268,30 +268,27 @@ pub(crate) async fn scenario_verify_clickhouse() -> Result<()> {
         fail!("expected 'fr-FR', got '{}'", page_locale.trim());
     }
 
-    let dup_count =
-        ch_query("SELECT count() FROM events WHERE event_id='e2e-duplicate-001'")
-            .await
-            .unwrap_or_default();
+    let dup_count = ch_query("SELECT count() FROM events WHERE event_id='e2e-duplicate-001'")
+        .await
+        .unwrap_or_default();
     if dup_count.trim() == "1" {
         pass!("duplicate messageId deduped");
     } else {
         fail!("expected 1 duplicate, got '{}'", dup_count.trim());
     }
 
-    let campaign =
-        ch_query("SELECT campaign_source FROM events WHERE event_id='e2e-identify-001'")
-            .await
-            .unwrap_or_default();
+    let campaign = ch_query("SELECT campaign_source FROM events WHERE event_id='e2e-identify-001'")
+        .await
+        .unwrap_or_default();
     if campaign.trim() == "google" {
         pass!("campaign_source correct");
     } else {
         fail!("expected 'google', got '{}'", campaign.trim());
     }
 
-    let ts_check =
-        ch_query("SELECT count() FROM events WHERE timestamp < received_at")
-            .await
-            .unwrap_or_default();
+    let ts_check = ch_query("SELECT count() FROM events WHERE timestamp < received_at")
+        .await
+        .unwrap_or_default();
     if ts_check.trim() == "5" {
         pass!("timestamp correction applied to all events");
     } else {
@@ -310,20 +307,18 @@ pub(crate) async fn scenario_verify_clickhouse() -> Result<()> {
         fail!("expected URL, got '{}'", page_url.trim());
     }
 
-    let page_ref =
-        ch_query("SELECT page_referrer FROM events WHERE event_id='e2e-page-001'")
-            .await
-            .unwrap_or_default();
+    let page_ref = ch_query("SELECT page_referrer FROM events WHERE event_id='e2e-page-001'")
+        .await
+        .unwrap_or_default();
     if page_ref.trim() == "https://google.com" {
         pass!("page_referrer correct");
     } else {
         fail!("expected referrer, got '{}'", page_ref.trim());
     }
 
-    let screen_w =
-        ch_query("SELECT screen_width FROM events WHERE event_id='e2e-page-001'")
-            .await
-            .unwrap_or_default();
+    let screen_w = ch_query("SELECT screen_width FROM events WHERE event_id='e2e-page-001'")
+        .await
+        .unwrap_or_default();
     if screen_w.trim() == "1920" {
         pass!("screen_width correct");
     } else {
@@ -364,7 +359,11 @@ pub(crate) async fn scenario_query_health() -> Result<()> {
     info!("Scenario: Query Service Health");
     let client = reqwest::Client::new();
     let resp = client
-        .get(&format!("http://localhost:{}/health", crate::QUERY_PORT))
+        .get(format!(
+            "http://{}:{}/health",
+            crate::HOST_LOOPBACK,
+            crate::QUERY_PORT
+        ))
         .send()
         .await?;
     if resp.status().as_u16() == 200 {
@@ -403,7 +402,11 @@ pub(crate) async fn scenario_query_auth() -> Result<()> {
 
     let client = reqwest::Client::new();
     let resp = client
-        .post(&format!("http://localhost:{}/v1/query/funnel", crate::QUERY_PORT))
+        .post(format!(
+            "http://{}:{}/v1/query/funnel",
+            crate::HOST_LOOPBACK,
+            crate::QUERY_PORT
+        ))
         .header("Content-Type", "application/json")
         .json(&funnel_body)
         .send()
@@ -551,7 +554,7 @@ pub(crate) async fn scenario_query_retention() -> Result<()> {
         let has_period_0 = c.iter().any(|co| {
             co["periods"]
                 .as_array()
-                .map_or(false, |ps| ps.iter().any(|p| p["period"] == 0))
+                .is_some_and(|ps| ps.iter().any(|p| p["period"] == 0))
         });
         if has_period_0 {
             pass!("retention has period 0");
@@ -578,7 +581,7 @@ pub(crate) async fn scenario_query_retention() -> Result<()> {
         if dc.iter().any(|co| {
             co["periods"]
                 .as_array()
-                .map_or(false, |ps| ps.iter().any(|p| p["period"] == 0))
+                .is_some_and(|ps| ps.iter().any(|p| p["period"] == 0))
         }) {
             pass!("daily retention has period 0");
         } else {
@@ -1002,14 +1005,12 @@ pub(crate) async fn scenario_negative_timestamp_skew() -> Result<()> {
     }
 
     for i in 0..TIMEOUT_SECS {
-        let fcount =
-            ch_query("SELECT count() FROM events WHERE event_id='e2e-skew-future-001'")
-                .await
-                .unwrap_or_default();
-        let pcount =
-            ch_query("SELECT count() FROM events WHERE event_id='e2e-skew-past-001'")
-                .await
-                .unwrap_or_default();
+        let fcount = ch_query("SELECT count() FROM events WHERE event_id='e2e-skew-future-001'")
+            .await
+            .unwrap_or_default();
+        let pcount = ch_query("SELECT count() FROM events WHERE event_id='e2e-skew-past-001'")
+            .await
+            .unwrap_or_default();
         let total = ch_query("SELECT count() FROM events")
             .await
             .unwrap_or_default();
@@ -1031,14 +1032,12 @@ pub(crate) async fn scenario_negative_timestamp_skew() -> Result<()> {
         sleep(Duration::from_secs(1)).await;
     }
 
-    let fcount =
-        ch_query("SELECT count() FROM events WHERE event_id='e2e-skew-future-001'")
-            .await
-            .unwrap_or_default();
-    let pcount =
-        ch_query("SELECT count() FROM events WHERE event_id='e2e-skew-past-001'")
-            .await
-            .unwrap_or_default();
+    let fcount = ch_query("SELECT count() FROM events WHERE event_id='e2e-skew-future-001'")
+        .await
+        .unwrap_or_default();
+    let pcount = ch_query("SELECT count() FROM events WHERE event_id='e2e-skew-past-001'")
+        .await
+        .unwrap_or_default();
     if fcount.trim() == "1" {
         pass!("future-skew event stored in ClickHouse");
     } else {
@@ -1083,10 +1082,9 @@ pub(crate) async fn scenario_negative_timestamp_skew() -> Result<()> {
                 .unwrap_or_default();
         let received_val: u32 = ts_received.trim().parse().unwrap_or(0);
 
-        let ts_past =
-            ch_query("SELECT timestamp FROM events WHERE event_id='e2e-skew-past-001'")
-                .await
-                .unwrap_or_default();
+        let ts_past = ch_query("SELECT timestamp FROM events WHERE event_id='e2e-skew-past-001'")
+            .await
+            .unwrap_or_default();
         let past_val: u32 = ts_past.trim().parse().unwrap_or(0);
 
         if past_val > 0 && received_val > 0 {
@@ -1174,7 +1172,8 @@ pub(crate) async fn scenario_segment_operators() -> Result<()> {
     wait_for_event_id("e2e-so-login-b-01", TIMEOUT_SECS).await?;
     pass!("segment_ops: events stored in ClickHouse");
 
-    let test_ops: Vec<(&str, u64, &str, Box<dyn Fn(u64) -> bool>)> = vec![
+    type SegmentOpCheck = (&'static str, u64, &'static str, Box<dyn Fn(u64) -> bool>);
+    let test_ops: Vec<SegmentOpCheck> = vec![
         ("neq", 5u64, "!=", Box::new(|u: u64| u >= 1)),
         ("gte", 3u64, ">=", Box::new(|u: u64| u >= 1)),
         ("lte", 3u64, "<=", Box::new(|u: u64| u >= 1)),

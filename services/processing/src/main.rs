@@ -41,7 +41,7 @@ async fn main() -> anyhow::Result<()> {
         r.store(false, Ordering::SeqCst);
     });
 
-    consumer.run().await?;
+    consumer.run_until(running).await?;
 
     Ok(())
 }

@@ -4,10 +4,11 @@ use anyhow::{Context, Result};
 use tracing::{info, warn};
 
 use crate::helpers::{cargo_run, docker_exec, docker_exec_stdin, wait_for_container};
-use crate::{
-    CH_CONTAINER, PG_CONTAINER, REDIS_CONTAINER, RP_CONTAINER, SERVICES_DIR,
-};
 use crate::ServiceGuard;
+use crate::{
+    CH_CONTAINER, CLICKHOUSE_URL, DATABASE_URL, KAFKA_BROKERS, PG_CONTAINER, REDIS_CONTAINER,
+    REDIS_URL, RP_CONTAINER, SERVICES_DIR,
+};
 
 // ── Phase 1: Infrastructure ───────────────────────────────────────
 
@@ -118,12 +119,10 @@ fn attempt_topic_list() -> Result<String> {
 }
 
 pub(crate) fn run_migrations() -> Result<()> {
-    let database_url = "postgres://opsbucket:opsbucket@localhost:5432/opsbucket";
-
     info!("Running Postgres migrations...");
     let status = Command::new("cargo")
         .args(["run", "-p", "opsbucket-migrator", "--", "up"])
-        .env("DATABASE_URL", &database_url)
+        .env("DATABASE_URL", DATABASE_URL)
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit())
         .current_dir(SERVICES_DIR)
@@ -205,12 +204,9 @@ pub(crate) fn start_services() -> Result<(ServiceGuard, ServiceGuard, ServiceGua
         "opsbucket-ingestion",
         &[],
         &[
-            ("KAFKA_BROKERS", "localhost:9092"),
-            (
-                "DATABASE_URL",
-                "postgres://opsbucket:opsbucket@localhost:5432/opsbucket",
-            ),
-            ("REDIS_URL", "redis://localhost:6379"),
+            ("KAFKA_BROKERS", KAFKA_BROKERS),
+            ("DATABASE_URL", DATABASE_URL),
+            ("REDIS_URL", REDIS_URL),
             ("RUST_LOG", "info"),
             ("PORT", &crate::INGEST_PORT.to_string()),
             ("RATE_LIMIT_CAPACITY", "2000"),
@@ -225,14 +221,11 @@ pub(crate) fn start_services() -> Result<(ServiceGuard, ServiceGuard, ServiceGua
         "opsbucket-processing",
         &[],
         &[
-            ("KAFKA_BROKERS", "localhost:9092"),
+            ("KAFKA_BROKERS", KAFKA_BROKERS),
             ("KAFKA_CONSUMER_GROUP", "opsbucket-e2e-processing"),
-            (
-                "DATABASE_URL",
-                "postgres://opsbucket:opsbucket@localhost:5432/opsbucket",
-            ),
-            ("REDIS_URL", "redis://localhost:6379"),
-            ("CLICKHOUSE_URL", "http://localhost:8123"),
+            ("DATABASE_URL", DATABASE_URL),
+            ("REDIS_URL", REDIS_URL),
+            ("CLICKHOUSE_URL", CLICKHOUSE_URL),
             ("CLICKHOUSE_USER", "default"),
             ("CLICKHOUSE_PASSWORD", "opsbucket"),
             ("BATCH_SIZE", "100"),
@@ -249,12 +242,9 @@ pub(crate) fn start_services() -> Result<(ServiceGuard, ServiceGuard, ServiceGua
         &[],
         &[
             ("SECRET_KEY", crate::SECRET_KEY),
-            (
-                "DATABASE_URL",
-                "postgres://opsbucket:opsbucket@localhost:5432/opsbucket",
-            ),
-            ("REDIS_URL", "redis://localhost:6379"),
-            ("CLICKHOUSE_URL", "http://localhost:8123"),
+            ("DATABASE_URL", DATABASE_URL),
+            ("REDIS_URL", REDIS_URL),
+            ("CLICKHOUSE_URL", CLICKHOUSE_URL),
             ("CLICKHOUSE_USER", "default"),
             ("CLICKHOUSE_PASSWORD", "opsbucket"),
             ("PORT", &crate::QUERY_PORT.to_string()),

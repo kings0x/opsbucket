@@ -1,15 +1,20 @@
 use crate::RetentionSpec;
 
 pub fn build(spec: &RetentionSpec) -> String {
-    let (cohort_fn, diff_unit) = match spec.interval.as_str() {
-        "day" => ("toDate", "day"),
-        _ => ("toStartOfWeek", "week"),
+    let (first_seen_bucket, ts_bucket, diff_unit) = if spec.interval == "day" {
+        ("toDate(first_seen)", "toDate(ts)", "day")
+    } else {
+        (
+            "toStartOfWeek(first_seen, 1)",
+            "toStartOfWeek(ts, 1)",
+            "week",
+        )
     };
 
     format!(
         "SELECT
-    toInt32({}(first_seen)) AS cohort_date,
-    toInt32(dateDiff('{}', {}(first_seen), {}(ts))) AS period,
+    toInt32({}) AS cohort_date,
+    toInt32(dateDiff('{}', {}, {})) AS period,
     count(DISTINCT user_key) AS users
 FROM (
     SELECT
@@ -24,10 +29,10 @@ FROM (
 WHERE user_key IS NOT NULL
 GROUP BY cohort_date, period
 ORDER BY cohort_date ASC, period ASC",
-        cohort_fn,
+        first_seen_bucket,
         diff_unit,
-        cohort_fn,
-        cohort_fn,
+        first_seen_bucket,
+        ts_bucket,
         sql_escape(&spec.project_id),
         sql_escape(&spec.event_name),
         to_ch_datetime(&spec.date_range.start),
@@ -64,9 +69,9 @@ mod tests {
     #[test]
     fn build_weekly_default_interval() {
         let sql = build(&make_spec("week", "proj_test", "App Opened"));
-        assert!(sql.contains("toInt32(toStartOfWeek(first_seen)) AS cohort_date"));
+        assert!(sql.contains("toInt32(toStartOfWeek(first_seen, 1)) AS cohort_date"));
         assert!(sql.contains(
-            "toInt32(dateDiff('week', toStartOfWeek(first_seen), toStartOfWeek(ts))) AS period"
+            "toInt32(dateDiff('week', toStartOfWeek(first_seen, 1), toStartOfWeek(ts, 1))) AS period"
         ));
     }
 

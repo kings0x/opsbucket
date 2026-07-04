@@ -34,6 +34,7 @@ mod tests {
             pg: Arc::new(MockPgHealth),
             redis: Arc::new(MockRedisHealth),
             rate_limiter: std::sync::Mutex::new(rate_limiter),
+            trust_proxy_headers: false,
         });
 
         Router::new()
@@ -230,6 +231,7 @@ mod tests {
             pg: Arc::new(MockPgHealth),
             redis: Arc::new(MockRedisHealth),
             rate_limiter: std::sync::Mutex::new(rate_limiter),
+            trust_proxy_headers: false,
         });
 
         let app = Router::new()

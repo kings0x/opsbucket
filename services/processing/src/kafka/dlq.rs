@@ -22,7 +22,7 @@ impl DlqProducer {
         let producer: FutureProducer = ClientConfig::new()
             .set("bootstrap.servers", brokers)
             .set("message.timeout.ms", "5000")
-            .set("allow.auto.create.topics", "true")
+            .set("allow.auto.create.topics", "false")
             .create()?;
         Ok(Self {
             producer,

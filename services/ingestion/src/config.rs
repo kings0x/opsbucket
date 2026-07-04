@@ -8,6 +8,7 @@ pub struct Config {
     pub port: u16,
     pub rate_limit_capacity: u64,
     pub rate_limit_refill: u64,
+    pub trust_proxy_headers: bool,
     pub rust_log: String,
 }
 
@@ -32,6 +33,10 @@ impl Config {
             .parse()
             .expect("RATE_LIMIT_REFILL must be a valid number");
 
+        let trust_proxy_headers = env::var("TRUST_PROXY_HEADERS")
+            .map(|v| matches!(v.as_str(), "1" | "true" | "TRUE" | "yes" | "YES"))
+            .unwrap_or(false);
+
         let rust_log = env::var("RUST_LOG").unwrap_or_else(|_| "info".to_string());
 
         Self {
@@ -41,6 +46,7 @@ impl Config {
             port,
             rate_limit_capacity,
             rate_limit_refill,
+            trust_proxy_headers,
             rust_log,
         }
     }

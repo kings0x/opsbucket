@@ -5,7 +5,7 @@ use deadpool_redis::Pool;
 
 #[async_trait]
 pub trait AuthValidator: Send + Sync {
-    async fn validate(&self, key: &str) -> Option<String>;
+    async fn validate(&self, key: &str) -> anyhow::Result<Option<String>>;
 }
 
 pub struct RedisPgAuth {
@@ -21,10 +21,8 @@ impl RedisPgAuth {
 
 #[async_trait]
 impl AuthValidator for RedisPgAuth {
-    async fn validate(&self, key: &str) -> Option<String> {
-        write_key::validate_write_key(key, &self.redis, &self.pg)
-            .await
-            .unwrap_or(None)
+    async fn validate(&self, key: &str) -> anyhow::Result<Option<String>> {
+        write_key::validate_write_key(key, &self.redis, &self.pg).await
     }
 }
 
@@ -55,7 +53,7 @@ impl MockAuth {
 
 #[async_trait]
 impl AuthValidator for MockAuth {
-    async fn validate(&self, key: &str) -> Option<String> {
-        self.keys.lock().unwrap().get(key).cloned()
+    async fn validate(&self, key: &str) -> anyhow::Result<Option<String>> {
+        Ok(self.keys.lock().unwrap().get(key).cloned())
     }
 }

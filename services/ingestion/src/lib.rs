@@ -21,4 +21,5 @@ pub struct AppState {
     pub pg: Arc<dyn PgHealth>,
     pub redis: Arc<dyn RedisHealth>,
     pub rate_limiter: Mutex<RateLimiter>,
+    pub trust_proxy_headers: bool,
 }

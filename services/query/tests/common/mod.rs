@@ -7,9 +7,14 @@ use clickhouse::Row;
 use opsbucket_query::config::Config;
 use opsbucket_query::AppState;
 use serde::Serialize;
+use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
 
 static SETUP: OnceLock<()> = OnceLock::new();
+
+const PG_URL: &str = "postgres://opsbucket:opsbucket@127.0.0.1:5432/opsbucket";
+const REDIS_URL: &str = "redis://127.0.0.1:6379";
+const CLICKHOUSE_URL: &str = "http://127.0.0.1:8123";
 
 pub fn setup_env() {
     SETUP.get_or_init(|| {
@@ -17,16 +22,13 @@ pub fn setup_env() {
             std::env::set_var("SECRET_KEY", "test-secret-key");
         }
         if std::env::var("DATABASE_URL").is_err() {
-            std::env::set_var(
-                "DATABASE_URL",
-                "postgres://opsbucket:opsbucket@localhost:5432/opsbucket",
-            );
+            std::env::set_var("DATABASE_URL", PG_URL);
         }
         if std::env::var("REDIS_URL").is_err() {
-            std::env::set_var("REDIS_URL", "redis://localhost:6379");
+            std::env::set_var("REDIS_URL", REDIS_URL);
         }
         if std::env::var("CLICKHOUSE_URL").is_err() {
-            std::env::set_var("CLICKHOUSE_URL", "http://localhost:8123/default");
+            std::env::set_var("CLICKHOUSE_URL", format!("{CLICKHOUSE_URL}/default"));
         }
         let _ = tracing_subscriber::fmt().with_env_filter("off").try_init();
     });
@@ -35,7 +37,7 @@ pub fn setup_env() {
 pub fn clickhouse_client() -> clickhouse::Client {
     setup_env();
     clickhouse::Client::default()
-        .with_url("http://localhost:8123")
+        .with_url(CLICKHOUSE_URL)
         .with_user("default")
         .with_password("opsbucket")
         .with_database("default")
@@ -43,18 +45,11 @@ pub fn clickhouse_client() -> clickhouse::Client {
 
 pub async fn pg_pool() -> PgPool {
     setup_env();
-    PgPool::connect("postgres://opsbucket:opsbucket@localhost:5432/opsbucket")
+    PgPoolOptions::new()
+        .max_connections(5)
+        .connect(PG_URL)
         .await
         .expect("connect to postgres")
-}
-
-pub async fn redis_manager() -> redis::aio::ConnectionManager {
-    setup_env();
-    let client = redis::Client::open("redis://localhost:6379").expect("open redis");
-    client
-        .get_connection_manager()
-        .await
-        .expect("redis connection manager")
 }
 
 pub fn build_router(state: Arc<AppState>) -> Router {
@@ -89,9 +84,9 @@ pub async fn build_test_state(config_override: Option<Config>) -> Arc<AppState> 
     setup_env();
     let config = config_override.unwrap_or_else(|| Config {
         secret_key: "test-secret-key".into(),
-        database_url: "postgres://opsbucket:opsbucket@localhost:5432/opsbucket".into(),
-        redis_url: "redis://localhost:6379".into(),
-        clickhouse_url: "http://localhost:8123/default".into(),
+        database_url: PG_URL.into(),
+        redis_url: REDIS_URL.into(),
+        clickhouse_url: format!("{CLICKHOUSE_URL}/default"),
         clickhouse_user: "default".into(),
         clickhouse_password: "".into(),
         query_cache_ttl_seconds: 60,
@@ -102,12 +97,14 @@ pub async fn build_test_state(config_override: Option<Config>) -> Arc<AppState> 
     });
 
     let ch = clickhouse::Client::default()
-        .with_url("http://localhost:8123")
+        .with_url(CLICKHOUSE_URL)
         .with_user("default")
         .with_password("opsbucket")
         .with_database("default");
 
-    let pg = PgPool::connect(&config.database_url)
+    let pg = PgPoolOptions::new()
+        .max_connections(5)
+        .connect(&config.database_url)
         .await
         .expect("connect postgres");
 
@@ -144,9 +141,9 @@ pub struct ChEventRow {
     pub event_type: String,
     pub anonymous_id: String,
     pub user_id: Option<String>,
-    pub timestamp: DateTime<Utc>,
-    pub received_at: DateTime<Utc>,
-    pub original_timestamp: DateTime<Utc>,
+    pub timestamp: u32,
+    pub received_at: u32,
+    pub original_timestamp: u32,
     pub properties: Vec<(String, String)>,
     pub traits: Vec<(String, String)>,
     pub user_agent: String,
@@ -189,9 +186,9 @@ impl ChEventRow {
             event_type: event_type.into(),
             anonymous_id: anonymous_id.into(),
             user_id: user_id.map(String::from),
-            timestamp,
-            received_at: timestamp,
-            original_timestamp: timestamp,
+            timestamp: timestamp.timestamp() as u32,
+            received_at: timestamp.timestamp() as u32,
+            original_timestamp: timestamp.timestamp() as u32,
             properties,
             traits: Vec::new(),
             user_agent: "test-agent".into(),
@@ -269,7 +266,7 @@ pub async fn insert_funnel_fixtures(ch: &clickhouse::Client) {
             "track",
             "anon_b",
             None,
-            base + Duration::minutes(120),
+            base + Duration::minutes(30),
             Vec::new(),
         ),
         // anon_c: completes only 1 funnel step
@@ -378,8 +375,7 @@ pub async fn insert_funnel_fixtures(ch: &clickhouse::Client) {
         ),
         // anon_g: Identify event with traits, then Feature Used
         {
-            let mut props = Vec::new();
-            props.push(("plan".into(), "pro".into()));
+            let props = vec![("plan".into(), "pro".into())];
             ChEventRow::new(
                 PROJ_1,
                 "ev_g1",
@@ -391,10 +387,19 @@ pub async fn insert_funnel_fixtures(ch: &clickhouse::Client) {
                 props,
             )
         },
+        ChEventRow::new(
+            PROJ_1,
+            "ev_g2",
+            "Feature Used",
+            "track",
+            "anon_g",
+            Some("usr_g"),
+            base + Duration::hours(1),
+            Vec::new(),
+        ),
         // anon_h: Has "free" plan, 2 Feature Used events
         {
-            let mut props = Vec::new();
-            props.push(("plan".into(), "free".into()));
+            let props = vec![("plan".into(), "free".into())];
             ChEventRow::new(
                 PROJ_1,
                 "ev_h1",

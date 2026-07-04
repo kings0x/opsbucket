@@ -6,16 +6,35 @@ pub enum ValidationError {
     #[error("batch exceeds maximum of {max_events} events (got {got})")]
     BatchTooLarge { got: usize, max_events: usize },
 
+    #[error("batch must contain at least one event")]
+    EmptyBatch,
+
+    #[error("{message}")]
+    InvalidSentAt { message: String },
+
     #[error("event {index}: {message}")]
     InvalidEvent { index: usize, message: String },
 }
 
 pub fn validate_batch(payload: &BatchPayload) -> Result<(), ValidationError> {
     let max_events: usize = 500;
+    if payload.batch.is_empty() {
+        return Err(ValidationError::EmptyBatch);
+    }
     if payload.batch.len() > max_events {
         return Err(ValidationError::BatchTooLarge {
             got: payload.batch.len(),
             max_events,
+        });
+    }
+    if payload.sent_at.trim().is_empty() {
+        return Err(ValidationError::InvalidSentAt {
+            message: "sentAt is required".to_string(),
+        });
+    }
+    if !is_valid_iso8601(&payload.sent_at) {
+        return Err(ValidationError::InvalidSentAt {
+            message: "sentAt must be a valid ISO-8601 string".to_string(),
         });
     }
 
@@ -197,6 +216,21 @@ mod tests {
         let events = vec![valid_track(); 500];
         let payload = make_payload(events);
         assert!(validate_batch(&payload).is_ok());
+    }
+
+    #[test]
+    fn rejects_empty_batch() {
+        let payload = make_payload(vec![]);
+        let err = validate_batch(&payload).unwrap_err();
+        assert!(matches!(err, ValidationError::EmptyBatch));
+    }
+
+    #[test]
+    fn rejects_invalid_sent_at() {
+        let mut payload = make_payload(vec![valid_track()]);
+        payload.sent_at = "not-a-timestamp".into();
+        let err = validate_batch(&payload).unwrap_err();
+        assert!(matches!(err, ValidationError::InvalidSentAt { .. }));
     }
 
     #[test]

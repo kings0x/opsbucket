@@ -1,4 +1,6 @@
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Result;
@@ -55,7 +57,7 @@ impl ProcessingConsumer {
             .set("enable.auto.commit", "false")
             .set("session.timeout.ms", "30000")
             .set("max.poll.interval.ms", "300000")
-            .set("allow.auto.create.topics", "true")
+            .set("allow.auto.create.topics", "false")
             .create()?;
 
         consumer.subscribe(&["raw-events"])?;
@@ -88,9 +90,13 @@ impl ProcessingConsumer {
     }
 
     pub async fn run(&mut self) -> Result<()> {
+        self.run_until(Arc::new(AtomicBool::new(true))).await
+    }
+
+    pub async fn run_until(&mut self, running: Arc<AtomicBool>) -> Result<()> {
         info!("processing consumer started");
 
-        while self.running {
+        while self.running && running.load(Ordering::SeqCst) {
             match self.process_batch().await {
                 Ok(true) => {}
                 Ok(false) => {
@@ -142,7 +148,7 @@ impl ProcessingConsumer {
                                     &e.to_string(),
                                     "deserialization",
                                 )
-                                .await;
+                                .await?;
                             }
                         }
                     }
@@ -163,7 +169,11 @@ impl ProcessingConsumer {
             if !partition_offsets.is_empty() {
                 let mut tpl = TopicPartitionList::new();
                 for (partition, offset) in &partition_offsets {
-                    tpl.add_partition_offset("raw-events", *partition, Offset::Offset(*offset + 1))?;
+                    tpl.add_partition_offset(
+                        "raw-events",
+                        *partition,
+                        Offset::Offset(*offset + 1),
+                    )?;
                 }
                 info!(
                     offsets = ?partition_offsets,
@@ -200,12 +210,13 @@ impl ProcessingConsumer {
         let (identify_events, mut non_identify): (Vec<RawEvent>, Vec<RawEvent>) = deduped
             .into_iter()
             .partition(|e| e.event_type == "identify");
+        let mut dlqed_events = Vec::new();
 
         for event in &identify_events {
             if let Err(e) =
                 identity::handlers::handle_identify(event, &self.pg, &mut self.redis).await
             {
-                if self.should_dlq(&event.message_id, "identify").await {
+                if self.should_dlq(&event.message_id, "identify").await? {
                     warn!(
                         message_id = %event.message_id,
                         error = %e,
@@ -216,13 +227,17 @@ impl ProcessingConsumer {
                         &e.to_string(),
                         "identify",
                     )
-                    .await;
+                    .await?;
+                    dlqed_events.push(event.clone());
+                } else {
+                    return Err(e);
                 }
             } else {
                 non_identify.push(event.clone());
             }
         }
 
+        let mut processed_events = non_identify.clone();
         let resolved = identity::resolver::resolve(
             non_identify,
             &mut self.redis,
@@ -235,32 +250,37 @@ impl ProcessingConsumer {
 
         let rows: Vec<_> = timestamped.into_iter().map(flatten::flatten).collect();
 
-        ch_client::insert_batch(&self.clickhouse, rows).await?;
+        if !rows.is_empty() {
+            ch_client::insert_batch(&self.clickhouse, rows).await?;
+        }
+        processed_events.extend(dlqed_events);
+        dedup::mark_processed(&processed_events, &mut self.redis, self.dedup_ttl).await?;
 
         Ok(())
     }
 
-    async fn should_dlq(&mut self, message_id: &str, stage: &str) -> bool {
+    async fn should_dlq(&mut self, message_id: &str, stage: &str) -> Result<bool> {
         let key = format!("retry:{}:{}", stage, message_id);
         let count: u32 = redis::cmd("INCR")
             .arg(&key)
             .query_async(&mut self.redis)
-            .await
-            .unwrap_or(1);
+            .await?;
         if count == 1 {
-            let _: () = redis::cmd("EXPIRE")
+            redis::cmd("EXPIRE")
                 .arg(&key)
                 .arg(3600i64)
-                .query_async(&mut self.redis)
-                .await
-                .unwrap_or_default();
+                .query_async::<()>(&mut self.redis)
+                .await?;
         }
-        count > self.dlq_max_retries
+        Ok(count > self.dlq_max_retries)
     }
 
-    async fn send_to_dlq(&self, event: &serde_json::Value, reason: &str, stage: &str) {
-        if let Err(e) = self.dlq.send(event, reason, stage).await {
-            error!(error = %e, "DLQ send failed");
-        }
+    async fn send_to_dlq(
+        &self,
+        event: &serde_json::Value,
+        reason: &str,
+        stage: &str,
+    ) -> Result<()> {
+        self.dlq.send(event, reason, stage).await
     }
 }

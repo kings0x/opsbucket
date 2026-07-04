@@ -33,6 +33,10 @@ pub async fn handle_identify(
 mod tests {
     use super::*;
     use redis::Client;
+    use sqlx::postgres::PgPoolOptions;
+
+    const PG_URL: &str = "postgres://opsbucket:opsbucket@127.0.0.1:5432/opsbucket";
+    const REDIS_URL: &str = "redis://127.0.0.1:6379";
 
     fn make_identify_event(anonymous_id: &str, user_id: &str) -> RawEvent {
         RawEvent {
@@ -83,7 +87,9 @@ mod tests {
 
     #[tokio::test]
     async fn identify_upserts_alias_row() {
-        let pg = PgPool::connect("postgres://opsbucket:opsbucket@localhost:5432/opsbucket")
+        let pg = PgPoolOptions::new()
+            .max_connections(5)
+            .connect(PG_URL)
             .await
             .unwrap();
         sqlx::query("DELETE FROM identity_aliases WHERE project_id = 'proj_1'")
@@ -91,7 +97,7 @@ mod tests {
             .await
             .unwrap();
 
-        let client = Client::open("redis://localhost:6379").unwrap();
+        let client = Client::open(REDIS_URL).unwrap();
         let mut redis = ConnectionManager::new(client).await.unwrap();
         redis::cmd("FLUSHDB")
             .query_async::<()>(&mut redis)
@@ -114,7 +120,9 @@ mod tests {
 
     #[tokio::test]
     async fn re_identify_updates_existing_row() {
-        let pg = PgPool::connect("postgres://opsbucket:opsbucket@localhost:5432/opsbucket")
+        let pg = PgPoolOptions::new()
+            .max_connections(5)
+            .connect(PG_URL)
             .await
             .unwrap();
         sqlx::query("DELETE FROM identity_aliases WHERE project_id = 'proj_1'")
@@ -122,7 +130,7 @@ mod tests {
             .await
             .unwrap();
 
-        let client = Client::open("redis://localhost:6379").unwrap();
+        let client = Client::open(REDIS_URL).unwrap();
         let mut redis = ConnectionManager::new(client).await.unwrap();
         redis::cmd("FLUSHDB")
             .query_async::<()>(&mut redis)
@@ -148,7 +156,9 @@ mod tests {
 
     #[tokio::test]
     async fn identify_invalidates_cache() {
-        let pg = PgPool::connect("postgres://opsbucket:opsbucket@localhost:5432/opsbucket")
+        let pg = PgPoolOptions::new()
+            .max_connections(5)
+            .connect(PG_URL)
             .await
             .unwrap();
         sqlx::query("DELETE FROM identity_aliases WHERE project_id = 'proj_1'")
@@ -156,7 +166,7 @@ mod tests {
             .await
             .unwrap();
 
-        let client = Client::open("redis://localhost:6379").unwrap();
+        let client = Client::open(REDIS_URL).unwrap();
         let mut redis = ConnectionManager::new(client).await.unwrap();
         redis::cmd("FLUSHDB")
             .query_async::<()>(&mut redis)
