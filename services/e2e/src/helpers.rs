@@ -59,13 +59,18 @@ pub(crate) fn cargo_run(
     _args: &[&str],
     envs: &[(&str, &str)],
 ) -> Result<std::process::Child> {
-    let binary_path = format!("{}\\target\\debug\\{}.exe", crate::SERVICES_DIR, package);
+    let binary_name = format!("{}{}", package, std::env::consts::EXE_SUFFIX);
+    let binary_path = crate::services_dir()
+        .join("target")
+        .join("debug")
+        .join(binary_name);
     let mut cmd = Command::new(&binary_path);
     cmd.stdout(Stdio::inherit()).stderr(Stdio::inherit());
     for (k, v) in envs {
         cmd.env(k, v);
     }
-    cmd.spawn().context(format!("spawning {}", binary_path))
+    cmd.spawn()
+        .context(format!("spawning {}", binary_path.display()))
 }
 
 // ── Wait helpers ──────────────────────────────────────────────────

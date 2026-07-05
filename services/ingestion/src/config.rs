@@ -9,6 +9,7 @@ pub struct Config {
     pub rate_limit_capacity: u64,
     pub rate_limit_refill: u64,
     pub trust_proxy_headers: bool,
+    pub cors_allowed_origins: Vec<String>,
     pub rust_log: String,
 }
 
@@ -37,6 +38,14 @@ impl Config {
             .map(|v| matches!(v.as_str(), "1" | "true" | "TRUE" | "yes" | "YES"))
             .unwrap_or(false);
 
+        let cors_allowed_origins = env::var("CORS_ALLOWED_ORIGINS")
+            .unwrap_or_default()
+            .split(',')
+            .map(str::trim)
+            .filter(|origin| !origin.is_empty())
+            .map(str::to_string)
+            .collect();
+
         let rust_log = env::var("RUST_LOG").unwrap_or_else(|_| "info".to_string());
 
         Self {
@@ -47,6 +56,7 @@ impl Config {
             rate_limit_capacity,
             rate_limit_refill,
             trust_proxy_headers,
+            cors_allowed_origins,
             rust_log,
         }
     }

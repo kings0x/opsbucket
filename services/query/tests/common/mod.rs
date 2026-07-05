@@ -92,6 +92,7 @@ pub async fn build_test_state(config_override: Option<Config>) -> Arc<AppState> 
         query_cache_ttl_seconds: 60,
         query_timeout_seconds: 30,
         max_date_range_days: 366,
+        cors_allowed_origins: Vec::new(),
         port: 0,
         rust_log: "off".into(),
     });

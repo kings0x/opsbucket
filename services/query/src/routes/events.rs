@@ -67,7 +67,7 @@ pub async fn handler(
         None => Vec::new(),
     };
 
-    let sql = raw_events::build(
+    let plan = raw_events::build_plan(
         &params.project_id,
         params.event_name.as_deref(),
         params.user_id.as_deref(),
@@ -77,7 +77,7 @@ pub async fn handler(
     );
 
     let ch_rows: Vec<ClickHouseEventRow> =
-        client::query(&state.ch_client, &sql, state.config.query_timeout_seconds)
+        client::query_plan(&state.ch_client, &plan, state.config.query_timeout_seconds)
             .await
             .map_err(AppError::from)?;
 

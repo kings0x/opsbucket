@@ -6,11 +6,11 @@ on:
     paths:
       - 'services/ingestion/**'
       - 'services/processing/**'
-      - 'services/archiver/**'
+      - 'services/query/**'
+      - 'services/e2e/**'
       - 'services/shared/**'
       - 'services/migrator/**'
       - 'infra/**'
-      - 'tests/e2e/**'
       - 'services/Cargo.lock'
       - '.github/workflows/e2e.yml'
   push:
@@ -18,136 +18,36 @@ on:
     paths:
       - 'services/ingestion/**'
       - 'services/processing/**'
-      - 'services/archiver/**'
+      - 'services/query/**'
+      - 'services/e2e/**'
       - 'services/shared/**'
       - 'services/migrator/**'
       - 'infra/**'
-      - 'tests/e2e/**'
       - 'services/Cargo.lock'
       - '.github/workflows/e2e.yml'
 
 jobs:
   e2e:
     runs-on: ubuntu-latest
-    services:
-      redpanda:
-        image: docker.redpanda.com/redpandadata/redpanda:latest
-        ports:
-          - 9092:9092
-          - 9644:9644
-        options: >-
-          --health-cmd "rpk cluster info"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: opsbucket
-          POSTGRES_PASSWORD: opsbucket
-          POSTGRES_DB: opsbucket
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U opsbucket"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 5
-      redis:
-        image: redis:7-alpine
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 5s
-          --health-timeout 3s
-          --health-retries 5
-      clickhouse:
-        image: clickhouse/clickhouse-server:24.3
-        env:
-          CLICKHOUSE_USER: default
-          CLICKHOUSE_PASSWORD: opsbucket
-        ports:
-          - 8123:8123
-          - 9000:9000
-        options: >-
-          --health-cmd "clickhouse-client --query 'SELECT 1'"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 10
+    timeout-minutes: 30
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install system dependencies for librdkafka
-        run: sudo apt-get update && sudo apt-get install -y libcurl4-openssl-dev libsasl2-dev postgresql-client
-
       - uses: dtolnay/rust-toolchain@stable
 
-      - name: Create Kafka topics
+      - name: Install system dependencies
         run: |
-          docker exec ${{ job.services.redpanda.id }} rpk topic create raw-events --partitions 1 -r 1
-          docker exec ${{ job.services.redpanda.id }} rpk topic create raw-events-dlq --partitions 1 -r 1
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            cmake \
+            libcurl4-openssl-dev \
+            libssl-dev \
+            libsasl2-dev \
+            pkg-config \
+            postgresql-client
 
-      - name: Run Postgres migrations
+      - name: Run standalone e2e harness
         working-directory: services
-        run: |
-          DATABASE_URL="postgres://opsbucket:opsbucket@localhost:5432/opsbucket" \
-            cargo run -p opsbucket-migrator -- up
-
-      - name: Seed test data
-        run: |
-          PGPASSWORD=opsbucket psql -h localhost -U opsbucket -d opsbucket -f tests/e2e/seed.sql
-
-      - name: Apply ClickHouse schema
-        run: |
-          curl -s -u "default:opsbucket" "http://localhost:8123/?readonly=0" \
-            --data-binary @infra/clickhouse/schema.sql
-          echo "Verifying events table exists..."
-          curl -s -u "default:opsbucket" "http://localhost:8123/" \
-            --data "SELECT count() FROM events"
-          echo ""
-
-      - name: Build ingestion
-        working-directory: services
-        run: cargo build -p opsbucket-ingestion
-
-      - name: Build processing
-        working-directory: services
-        run: cargo build -p opsbucket-processing
-
-      - name: Build archiver
-        working-directory: services
-        run: cargo build -p opsbucket-archiver
-
-      - name: Start ingestion
-        working-directory: services
-        run: |
-          KAFKA_BROKERS="localhost:9092" \
-          DATABASE_URL="postgres://opsbucket:opsbucket@localhost:5432/opsbucket" \
-          REDIS_URL="redis://localhost:6379" \
-          RUST_LOG="info" \
-          PORT="8080" \
-            cargo run -p opsbucket-ingestion &
-          sleep 5
-          curl -sf http://localhost:8080/health || (echo "Ingestion failed to start" && exit 1)
-
-      - name: Start processing
-        working-directory: services
-        run: |
-          KAFKA_BROKERS="localhost:9092" \
-          KAFKA_CONSUMER_GROUP="opsbucket-processing-e2e" \
-          DATABASE_URL="postgres://opsbucket:opsbucket@localhost:5432/opsbucket" \
-          REDIS_URL="redis://localhost:6379" \
-          CLICKHOUSE_URL="http://localhost:8123" \
-          CLICKHOUSE_USER="default" \
-          CLICKHOUSE_PASSWORD="opsbucket" \
-          BATCH_SIZE="100" \
-          BATCH_TIMEOUT_MS="3000" \
-          RUST_LOG="info" \
-            cargo run -p opsbucket-processing &
-          sleep 3
-
-      - name: Run test scenarios
-        run: |
-          bash tests/e2e/scenarios.sh
+        run: cargo run -p opsbucket-e2e

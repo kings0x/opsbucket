@@ -9,7 +9,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 rdkafka = { version = "0.36", features = ["cmake-build"] }
 object_store = { version = "0.11", features = ["aws"] }
-parquet = { version = "53", default-features = false, features = ["arrow"] }
+parquet = { version = "53", default-features = false, features = ["arrow", "snap"] }
 arrow = { version = "53", default-features = false }
 anyhow = "1"
 tracing = "0.1"

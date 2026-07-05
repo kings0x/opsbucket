@@ -7,3 +7,4 @@ target/
 *.log
 sdk/dist/
 nul
+test_response.txt

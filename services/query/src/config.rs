@@ -9,6 +9,7 @@ pub struct Config {
     pub query_cache_ttl_seconds: u64,
     pub query_timeout_seconds: u64,
     pub max_date_range_days: u64,
+    pub cors_allowed_origins: Vec<String>,
     pub port: u16,
     pub rust_log: String,
 }
@@ -34,6 +35,13 @@ impl Config {
                 .ok()
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(366),
+            cors_allowed_origins: std::env::var("CORS_ALLOWED_ORIGINS")
+                .unwrap_or_default()
+                .split(',')
+                .map(str::trim)
+                .filter(|origin| !origin.is_empty())
+                .map(str::to_string)
+                .collect(),
             port: std::env::var("PORT")
                 .ok()
                 .and_then(|v| v.parse().ok())

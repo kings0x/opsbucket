@@ -6,14 +6,15 @@ use tracing::{info, warn};
 use crate::helpers::{cargo_run, docker_exec, docker_exec_stdin, wait_for_container};
 use crate::ServiceGuard;
 use crate::{
-    CH_CONTAINER, CLICKHOUSE_URL, DATABASE_URL, KAFKA_BROKERS, PG_CONTAINER, REDIS_CONTAINER,
-    REDIS_URL, RP_CONTAINER, SERVICES_DIR,
+    ARCHIVE_S3_BUCKET, CH_CONTAINER, CLICKHOUSE_URL, DATABASE_URL, KAFKA_BROKERS,
+    MINIO_CONTAINER, MINIO_ENDPOINT, PG_CONTAINER, REDIS_CONTAINER, REDIS_URL, RP_CONTAINER,
 };
 
 // ── Phase 1: Infrastructure ───────────────────────────────────────
 
 pub(crate) fn start_infrastructure() -> Result<()> {
-    let compose_file = format!("{}\\infra\\docker-compose.yml", crate::ROOT_DIR);
+    let compose_file = crate::root_dir().join("infra").join("docker-compose.yml");
+    let compose_file_arg = compose_file.to_string_lossy().into_owned();
     info!("Starting infrastructure via docker compose...");
     let status = Command::new("docker")
         .args([
@@ -21,7 +22,7 @@ pub(crate) fn start_infrastructure() -> Result<()> {
             "-p",
             "opsbucket-e2e",
             "-f",
-            &compose_file,
+            &compose_file_arg,
             "up",
             "-d",
         ])
@@ -59,6 +60,9 @@ pub(crate) async fn wait_for_infrastructure() -> Result<()> {
         30,
     )
     .await?;
+
+    info!("Waiting for MinIO...");
+    wait_for_container(MINIO_CONTAINER, &["mc", "ready", "local"], "MinIO", 30).await?;
 
     info!("All infrastructure ready");
     Ok(())
@@ -125,7 +129,7 @@ pub(crate) fn run_migrations() -> Result<()> {
         .env("DATABASE_URL", DATABASE_URL)
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit())
-        .current_dir(SERVICES_DIR)
+        .current_dir(crate::services_dir())
         .status()
         .context("migrations failed")?;
     if !status.success() {
@@ -160,7 +164,10 @@ pub(crate) fn apply_clickhouse_schema() -> Result<()> {
         &["clickhouse-client", "--multiquery"],
         "DROP TABLE IF EXISTS events;",
     )?;
-    let schema_path = format!("{}\\infra\\clickhouse\\schema.sql", crate::ROOT_DIR);
+    let schema_path = crate::root_dir()
+        .join("infra")
+        .join("clickhouse")
+        .join("schema.sql");
     let schema = std::fs::read_to_string(&schema_path).context("reading schema.sql")?;
     docker_exec_stdin(
         CH_CONTAINER,
@@ -168,6 +175,24 @@ pub(crate) fn apply_clickhouse_schema() -> Result<()> {
         &schema,
     )?;
     info!("ClickHouse schema applied");
+    Ok(())
+}
+
+pub(crate) fn create_archive_bucket() -> Result<()> {
+    info!("Creating MinIO bucket {}...", ARCHIVE_S3_BUCKET);
+    let result = docker_exec(
+        MINIO_CONTAINER,
+        &[
+            "mc",
+            "mb",
+            &format!("local/{}", ARCHIVE_S3_BUCKET),
+            "--ignore-existing",
+        ],
+    );
+    match result {
+        Ok(_) => info!("archive bucket created"),
+        Err(e) => warn!("bucket creation (may already exist): {}", e),
+    }
     Ok(())
 }
 
@@ -179,13 +204,14 @@ pub(crate) fn build_services() -> Result<()> {
         "opsbucket-ingestion",
         "opsbucket-processing",
         "opsbucket-query",
+        "opsbucket-archiver",
     ] {
         info!("building {}...", pkg);
         let status = Command::new("cargo")
             .args(["build", "-p", pkg])
             .stdout(Stdio::piped())
             .stderr(Stdio::inherit())
-            .current_dir(SERVICES_DIR)
+            .current_dir(crate::services_dir())
             .status()
             .context(format!("building {}", pkg))?;
         if !status.success() {
@@ -198,7 +224,7 @@ pub(crate) fn build_services() -> Result<()> {
 
 // ── Phase 4: Start Services ───────────────────────────────────────
 
-pub(crate) fn start_services() -> Result<(ServiceGuard, ServiceGuard, ServiceGuard)> {
+pub(crate) fn start_services() -> Result<(ServiceGuard, ServiceGuard, ServiceGuard, ServiceGuard)> {
     info!("Starting ingestion on port {}...", crate::INGEST_PORT);
     let ingestion = cargo_run(
         "opsbucket-ingestion",
@@ -254,5 +280,26 @@ pub(crate) fn start_services() -> Result<(ServiceGuard, ServiceGuard, ServiceGua
     .context("starting query service")?;
     let query_guard = ServiceGuard::new(query);
 
-    Ok((ingest_guard, processing_guard, query_guard))
+    info!("Starting archiver consumer...");
+    let archiver = cargo_run(
+        "opsbucket-archiver",
+        &[],
+        &[
+            ("KAFKA_BROKERS", KAFKA_BROKERS),
+            ("KAFKA_CONSUMER_GROUP", "opsbucket-e2e-archiver"),
+            ("ARCHIVE_S3_BUCKET", crate::ARCHIVE_S3_BUCKET),
+            ("ARCHIVE_S3_PREFIX", "raw-events"),
+            ("ARCHIVE_S3_REGION", "us-east-1"),
+            ("ARCHIVE_S3_ENDPOINT", MINIO_ENDPOINT),
+            ("AWS_ACCESS_KEY_ID", "minioadmin"),
+            ("AWS_SECRET_ACCESS_KEY", "minioadmin"),
+            ("BATCH_SIZE", "100"),
+            ("BATCH_TIMEOUT_MS", "3000"),
+            ("RUST_LOG", "debug"),
+        ],
+    )
+    .context("starting archiver")?;
+    let archiver_guard = ServiceGuard::new(archiver);
+
+    Ok((ingest_guard, processing_guard, query_guard, archiver_guard))
 }

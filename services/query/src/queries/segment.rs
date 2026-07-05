@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 
+use crate::ch::client::{QueryParam, QueryPlan};
 use crate::{SegmentCondition, SegmentSpec};
 
 fn sql_op(op: &str) -> Result<&'static str, String> {
@@ -15,29 +16,12 @@ fn sql_op(op: &str) -> Result<&'static str, String> {
     }
 }
 
-fn sql_value(val: &serde_json::Value, op: &str) -> String {
-    if op == "contains" {
-        format!(
-            "'%{}%'",
-            sql_escape(&like_escape(val.to_string().trim_matches('"')))
-        )
-    } else {
-        match val {
-            serde_json::Value::String(s) => format!("'{}'", sql_escape(s)),
-            serde_json::Value::Number(n) => n.to_string(),
-            serde_json::Value::Bool(b) => if *b { "'true'" } else { "'false'" }.to_string(),
-            _ => format!("'{}'", sql_escape(&val.to_string())),
-        }
-    }
-}
-
-pub fn build_condition(
+pub fn build_plan_condition(
     cond: &SegmentCondition,
     project_id: &str,
     limit: u64,
-) -> Result<String, String> {
+) -> Result<QueryPlan, String> {
     let op = sql_op(&cond.op)?;
-    let value_sql = sql_value(&cond.value, &cond.op);
 
     match cond.condition_type.as_str() {
         "event_count" => {
@@ -47,38 +31,59 @@ pub fn build_condition(
                 .ok_or("event_count condition requires event_name")?;
             let within = cond.within_days.unwrap_or(30);
 
-            Ok(format!(
+            let sql = format!(
                 "SELECT COALESCE(user_id, anonymous_id) AS user_key
 FROM events
-WHERE project_id = '{}'
-  AND event_name = '{}'
-  AND timestamp >= now() - INTERVAL {} DAY
+WHERE project_id = ?
+  AND event_name = ?
+  AND timestamp >= now() - INTERVAL ? DAY
 GROUP BY user_key
-HAVING count() {} {}
-LIMIT {}",
-                sql_escape(project_id),
-                sql_escape(event_name),
-                within,
+HAVING count() {} ?
+LIMIT ?",
                 op,
-                value_sql,
-                limit,
-            ))
+            );
+
+            let params = vec![
+                QueryParam::String(project_id.to_string()),
+                QueryParam::String(event_name.to_string()),
+                QueryParam::U64(within as u64),
+                value_to_param(&cond.value),
+                QueryParam::U64(limit),
+            ];
+
+            Ok(QueryPlan::new(sql, params))
         }
         "trait" => {
             let key = cond.key.as_deref().ok_or("trait condition requires key")?;
-            Ok(format!(
+
+            let (op_sql, value_param) = if cond.op == "contains" {
+                let pattern = format!(
+                    "%{}%",
+                    like_escape(cond.value.to_string().trim_matches('"'))
+                );
+                ("LIKE", QueryParam::String(pattern))
+            } else {
+                (op, value_to_param(&cond.value))
+            };
+
+            let sql = format!(
                 "SELECT DISTINCT COALESCE(user_id, anonymous_id) AS user_key
 FROM events
-WHERE project_id = '{}'
+WHERE project_id = ?
   AND event_name = 'Identify'
-  AND properties['{}'] {} {}
-LIMIT {}",
-                sql_escape(project_id),
-                sql_escape(key),
-                op,
-                value_sql,
-                limit,
-            ))
+  AND properties[?] {} ?
+LIMIT ?",
+                op_sql,
+            );
+
+            let params = vec![
+                QueryParam::String(project_id.to_string()),
+                QueryParam::String(key.to_string()),
+                value_param,
+                QueryParam::U64(limit),
+            ];
+
+            Ok(QueryPlan::new(sql, params))
         }
         _ => Err(format!(
             "unsupported condition type: {}",
@@ -87,14 +92,29 @@ LIMIT {}",
     }
 }
 
-pub fn build(spec: &SegmentSpec) -> Result<(Vec<String>, u64), String> {
-    let mut subqueries = Vec::new();
+pub fn build_plan(spec: &SegmentSpec) -> Result<(Vec<QueryPlan>, u64), String> {
     let subquery_limit = spec.limit.saturating_add(1);
+    let mut plans = Vec::new();
     for cond in &spec.conditions {
-        let sql = build_condition(cond, &spec.project_id, subquery_limit)?;
-        subqueries.push(sql);
+        let plan = build_plan_condition(cond, &spec.project_id, subquery_limit)?;
+        plans.push(plan);
     }
-    Ok((subqueries, spec.limit))
+    Ok((plans, spec.limit))
+}
+
+fn value_to_param(val: &serde_json::Value) -> QueryParam {
+    match val {
+        serde_json::Value::String(s) => QueryParam::String(s.clone()),
+        serde_json::Value::Number(n) => {
+            if let Some(i) = n.as_i64() {
+                QueryParam::I64(i)
+            } else {
+                QueryParam::F64(n.as_f64().unwrap_or(0.0))
+            }
+        }
+        serde_json::Value::Bool(b) => QueryParam::String(b.to_string()),
+        _ => QueryParam::String(val.to_string()),
+    }
 }
 
 pub fn intersect(results: Vec<HashSet<String>>) -> HashSet<String> {
@@ -106,10 +126,6 @@ pub fn intersect(results: Vec<HashSet<String>>) -> HashSet<String> {
         intersection.retain(|key| set.contains(key));
     }
     intersection
-}
-
-fn sql_escape(s: &str) -> String {
-    s.replace('\'', "\\'")
 }
 
 fn like_escape(s: &str) -> String {

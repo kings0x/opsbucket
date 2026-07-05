@@ -27,7 +27,7 @@ impl KafkaProducer {
             .set("message.timeout.ms", "5000")
             .set("compression.type", "none")
             .set("max.in.flight", "5")
-            .set("allow.auto.create.topics", "true")
+            .set("allow.auto.create.topics", "false")
             .create()?;
         Ok(Self { producer })
     }

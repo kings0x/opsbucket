@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use axum::http::{header, HeaderValue, Method};
 use axum::extract::DefaultBodyLimit;
 use axum::routing::{get, post};
 use axum::Router;
@@ -60,7 +61,7 @@ impl Server {
             .route("/v1/batch", post(batch::post_batch))
             .route("/health", get(health::get_health))
             .layer(DefaultBodyLimit::max(1_048_576))
-            .layer(CorsLayer::permissive())
+            .layer(cors_layer(&self.config.cors_allowed_origins))
             .layer(TraceLayer::new_for_http())
             .with_state(state);
 
@@ -74,6 +75,25 @@ impl Server {
 
         Ok(())
     }
+}
+
+fn cors_layer(allowed_origins: &[String]) -> CorsLayer {
+    if allowed_origins.is_empty() {
+        return CorsLayer::permissive();
+    }
+
+    let origins = allowed_origins
+        .iter()
+        .map(|origin| {
+            HeaderValue::from_str(origin)
+                .unwrap_or_else(|_| panic!("invalid CORS origin: {}", origin))
+        })
+        .collect::<Vec<_>>();
+
+    CorsLayer::new()
+        .allow_origin(origins)
+        .allow_methods([Method::POST, Method::OPTIONS])
+        .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE])
 }
 
 async fn shutdown_signal() {

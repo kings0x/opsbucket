@@ -201,7 +201,10 @@ impl ProcessingConsumer {
         Ok(true)
     }
 
-    async fn process_events(&mut self, events: Vec<RawEvent>) -> Result<()> {
+    /// Exposed as `pub` for integration tests.
+    /// Processes a batch of already-deserialized events through the full pipeline:
+    /// dedup → identity resolution → timestamp correction → flatten → ClickHouse insert.
+    pub async fn process_events(&mut self, events: Vec<RawEvent>) -> Result<()> {
         let deduped = dedup::filter(events, &mut self.redis, self.dedup_ttl).await?;
         if deduped.is_empty() {
             return Ok(());

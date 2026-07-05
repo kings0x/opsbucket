@@ -25,6 +25,26 @@ impl From<clickhouse::error::Error> for QueryError {
     }
 }
 
+#[derive(Debug, Clone)]
+pub enum QueryParam {
+    String(String),
+    U64(u64),
+    I64(i64),
+    F64(f64),
+}
+
+#[derive(Debug, Clone)]
+pub struct QueryPlan {
+    pub sql: String,
+    pub params: Vec<QueryParam>,
+}
+
+impl QueryPlan {
+    pub fn new(sql: String, params: Vec<QueryParam>) -> Self {
+        Self { sql, params }
+    }
+}
+
 pub async fn query<T>(
     client: &clickhouse::Client,
     sql: &str,
@@ -46,5 +66,37 @@ where
                 QueryError::ClickHouse(e)
             }
         })?;
+    Ok(rows)
+}
+
+pub async fn query_plan<T>(
+    client: &clickhouse::Client,
+    plan: &QueryPlan,
+    timeout_secs: u64,
+) -> Result<Vec<T>, QueryError>
+where
+    T: Row + serde::de::DeserializeOwned,
+{
+    let mut query = client
+        .query(&plan.sql)
+        .with_option("max_execution_time", timeout_secs.to_string());
+
+    for param in &plan.params {
+        query = match param {
+            QueryParam::String(value) => query.bind(value),
+            QueryParam::U64(value) => query.bind(*value),
+            QueryParam::I64(value) => query.bind(*value),
+            QueryParam::F64(value) => query.bind(*value),
+        };
+    }
+
+    let rows: Vec<T> = query.fetch_all::<T>().await.map_err(|e| {
+        let msg = e.to_string();
+        if msg.contains("TIMEOUT_EXCEEDED") {
+            QueryError::Timeout
+        } else {
+            QueryError::ClickHouse(e)
+        }
+    })?;
     Ok(rows)
 }

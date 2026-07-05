@@ -1,66 +1,73 @@
 use base64::Engine;
 
+use crate::ch::client::{QueryParam, QueryPlan};
 use crate::Cursor;
 
-pub fn build(
+pub fn build_plan(
     project_id: &str,
     event_name: Option<&str>,
     user_id: Option<&str>,
     alias_anonymous_ids: &[String],
     cursor: Option<&Cursor>,
     limit: u64,
-) -> String {
-    let cursor_cond = match cursor {
-        Some(c) => format!(
-            "  AND (timestamp, event_id) < ('{}', '{}')",
-            c.ts.format("%Y-%m-%d %H:%M:%S"),
-            sql_escape(&c.id),
-        ),
-        None => String::new(),
+) -> QueryPlan {
+    let cursor_cond = if cursor.is_some() {
+        "  AND (timestamp, event_id) < (?, ?)"
+    } else {
+        ""
     };
 
-    let event_filter = match event_name {
-        Some(name) => format!("event_name = '{}'", sql_escape(name)),
-        None => "1 = 1".to_string(),
+    let event_filter = if event_name.is_some() {
+        "event_name = ?"
+    } else {
+        "1 = 1"
     };
 
-    let user_filter = match user_id {
-        Some(uid) => {
-            let mut identities = vec![format!("'{}'", sql_escape(uid))];
-            identities.extend(
-                alias_anonymous_ids
-                    .iter()
-                    .map(|id| format!("'{}'", sql_escape(id))),
-            );
-            format!(
-                "(user_id = '{}' OR anonymous_id IN ({}))",
-                sql_escape(uid),
-                identities.join(", "),
-            )
-        }
-        None => "1 = 1".to_string(),
+    let user_filter = if user_id.is_some() {
+        let anonymous_placeholders = if alias_anonymous_ids.is_empty() {
+            "''".to_string()
+        } else {
+            vec!["?"; alias_anonymous_ids.len()].join(", ")
+        };
+        format!(
+            "(user_id = ? OR anonymous_id IN ({}))",
+            anonymous_placeholders
+        )
+    } else {
+        "1 = 1".to_string()
     };
 
-    format!(
+    let sql = format!(
         "SELECT
     project_id, event_id, event_name, anonymous_id, user_id,
     timestamp, page_url, page_referrer, user_agent, properties
 FROM events
-WHERE project_id = '{}'
+WHERE project_id = ?
   AND ({})
   AND ({}){}
 ORDER BY timestamp DESC, event_id DESC
-LIMIT {}",
-        sql_escape(project_id),
-        event_filter,
-        user_filter,
-        cursor_cond,
-        limit,
-    )
-}
+LIMIT ?",
+        event_filter, user_filter, cursor_cond,
+    );
 
-fn sql_escape(s: &str) -> String {
-    s.replace('\'', "\\'")
+    let mut params = Vec::new();
+    params.push(QueryParam::String(project_id.to_string()));
+    if let Some(name) = event_name {
+        params.push(QueryParam::String(name.to_string()));
+    }
+    if let Some(uid) = user_id {
+        params.push(QueryParam::String(uid.to_string()));
+        params.extend(alias_anonymous_ids.iter().cloned().map(QueryParam::String));
+    }
+    if let Some(c) = cursor {
+        params.push(QueryParam::String(
+            c.ts.format("%Y-%m-%d %H:%M:%S").to_string(),
+        ));
+        params.push(QueryParam::String(c.id.clone()));
+    }
+    params.push(QueryParam::U64(limit));
+
+    QueryPlan::new(sql, params)
 }
 
 pub fn encode_cursor(ts: &chrono::DateTime<chrono::Utc>, id: &str) -> String {

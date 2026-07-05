@@ -1,7 +1,7 @@
 services:
   redpanda:
     container_name: redpanda
-    image: docker.redpanda.com/redpandadata/redpanda:latest
+    image: docker.redpanda.com/redpandadata/redpanda:v24.3.7
     command:
       - redpanda start
       - --smp 1
@@ -10,8 +10,13 @@ services:
       - --node-id 0
       - --check=false
     ports:
-      - "9092:9092"
-      - "9644:9644"
+      - "127.0.0.1:9092:9092"
+      - "127.0.0.1:9644:9644"
+    healthcheck:
+      test: ["CMD", "rpk", "cluster", "info"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
   postgres:
     container_name: postgres
@@ -21,15 +26,43 @@ services:
       POSTGRES_PASSWORD: opsbucket
       POSTGRES_DB: opsbucket
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U opsbucket -d opsbucket"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   redis:
     container_name: redis
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  minio:
+    container_name: minio
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "127.0.0.1:9002:9000"
+      - "127.0.0.1:9003:9001"
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ["CMD-SHELL", "mc alias set local http://localhost:9000 minioadmin minioadmin 2>/dev/null && mc ready local"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
   clickhouse:
     container_name: clickhouse
@@ -38,11 +71,17 @@ services:
       CLICKHOUSE_USER: default
       CLICKHOUSE_PASSWORD: opsbucket
     ports:
-      - "8123:8123"
-      - "9000:9000"
+      - "127.0.0.1:8123:8123"
+      - "127.0.0.1:9000:9000"
     volumes:
       - chdata:/var/lib/clickhouse
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
 volumes:
   pgdata:
   chdata:
+  miniodata:

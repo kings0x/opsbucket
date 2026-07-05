@@ -32,9 +32,9 @@ pub async fn handler(
         return Ok(Json(cached));
     }
 
-    let sql = funnel::build(&spec);
+    let plan = funnel::build_plan(&spec);
     let rows: Vec<FunnelRow> =
-        client::query(&state.ch_client, &sql, state.config.query_timeout_seconds)
+        client::query_plan(&state.ch_client, &plan, state.config.query_timeout_seconds)
             .await
             .map_err(AppError::from)?;
 

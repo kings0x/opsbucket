@@ -32,12 +32,12 @@ pub async fn handler(
         return Ok(Json(cached));
     }
 
-    let (subqueries, limit) = segment::build(&spec).map_err(AppError::invalid_request)?;
+    let (plans, limit) = segment::build_plan(&spec).map_err(AppError::invalid_request)?;
 
     let mut result_sets = Vec::new();
-    for sql in &subqueries {
+    for plan in &plans {
         let rows: Vec<SegmentRow> =
-            client::query(&state.ch_client, sql, state.config.query_timeout_seconds)
+            client::query_plan(&state.ch_client, plan, state.config.query_timeout_seconds)
                 .await
                 .map_err(AppError::from)?;
         let set: HashSet<String> = rows.into_iter().map(|r| r.user_key).collect();

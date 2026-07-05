@@ -1,3 +1,4 @@
+use std::path::{Path, PathBuf};
 use std::process::{Child, Command};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
@@ -11,8 +12,16 @@ mod setup;
 
 // ── Constants ──────────────────────────────────────────────────────
 
-const ROOT_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "\\..\\..");
-pub(crate) const SERVICES_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "\\..\\..\\services");
+pub(crate) fn root_dir() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .canonicalize()
+        .expect("repository root should exist")
+}
+
+pub(crate) fn services_dir() -> PathBuf {
+    root_dir().join("services")
+}
 
 pub(crate) const INGEST_PORT: u16 = 8080;
 pub(crate) const QUERY_PORT: u16 = 8081;
@@ -32,6 +41,9 @@ pub(crate) const PG_CONTAINER: &str = "postgres";
 pub(crate) const CH_CONTAINER: &str = "clickhouse";
 pub(crate) const RP_CONTAINER: &str = "redpanda";
 pub(crate) const REDIS_CONTAINER: &str = "redis";
+pub(crate) const MINIO_CONTAINER: &str = "minio";
+pub(crate) const MINIO_ENDPOINT: &str = "http://127.0.0.1:9002";
+pub(crate) const ARCHIVE_S3_BUCKET: &str = "opsbucket-archive";
 
 // ── Stats ──────────────────────────────────────────────────────────
 
@@ -88,7 +100,8 @@ impl Drop for ComposeGuard {
         if self.no_cleanup {
             return;
         }
-        let compose_file = format!("{}\\infra\\docker-compose.yml", ROOT_DIR);
+        let compose_file = root_dir().join("infra").join("docker-compose.yml");
+        let compose_file_arg = compose_file.to_string_lossy().into_owned();
         info!("stopping infrastructure...");
         let _ = Command::new("docker")
             .args([
@@ -96,7 +109,7 @@ impl Drop for ComposeGuard {
                 "-p",
                 "opsbucket-e2e",
                 "-f",
-                &compose_file,
+                &compose_file_arg,
                 "down",
                 "-v",
             ])
@@ -133,6 +146,7 @@ async fn main() -> anyhow::Result<()> {
     setup::seed_test_data()?;
     setup::flush_redis()?;
     setup::apply_clickhouse_schema()?;
+    setup::create_archive_bucket()?;
 
     // ── Phase 3: Build ──
     println!("\n\x1b[1m── Phase 3: Build ──\x1b[0m\n");
@@ -144,7 +158,7 @@ async fn main() -> anyhow::Result<()> {
 
     // ── Phase 4: Start Services ──
     println!("\n\x1b[1m── Phase 4: Start Services ──\x1b[0m\n");
-    let (_ingest_guard, _processing_guard, _query_guard) = setup::start_services()?;
+    let (_ingest_guard, _processing_guard, _query_guard, _archiver_guard) = setup::start_services()?;
 
     helpers::wait_for_port(HOST_LOOPBACK, INGEST_PORT, "Ingestion", 30).await?;
     info!("processing waiting 5s for initial poll...");
@@ -181,6 +195,7 @@ async fn main() -> anyhow::Result<()> {
     scenarios::scenario_negative_timestamp_skew().await?;
     scenarios::scenario_segment_operators().await?;
     scenarios::scenario_dlq_path().await?;
+    scenarios::scenario_archive().await?;
     scenarios::scenario_concurrent_ingestion().await?;
 
     // ── Summary ──

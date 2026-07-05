@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use axum::http::{header, HeaderValue, Method};
 use axum::routing::{get, post};
 use axum::Router;
 use tower_http::cors::CorsLayer;
@@ -46,7 +47,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/v1/query/segment", post(segment::handler))
         .route("/v1/query/events", get(events::handler))
         .route("/health", get(health::handler))
-        .layer(CorsLayer::permissive())
+        .layer(cors_layer(&config.cors_allowed_origins))
         .layer(TraceLayer::new_for_http())
         .with_state(state);
 
@@ -59,6 +60,25 @@ async fn main() -> anyhow::Result<()> {
         .await?;
 
     Ok(())
+}
+
+fn cors_layer(allowed_origins: &[String]) -> CorsLayer {
+    if allowed_origins.is_empty() {
+        return CorsLayer::permissive();
+    }
+
+    let origins = allowed_origins
+        .iter()
+        .map(|origin| {
+            HeaderValue::from_str(origin)
+                .unwrap_or_else(|_| panic!("invalid CORS origin: {}", origin))
+        })
+        .collect::<Vec<_>>();
+
+    CorsLayer::new()
+        .allow_origin(origins)
+        .allow_methods([Method::GET, Method::POST, Method::OPTIONS])
+        .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE])
 }
 
 async fn shutdown_signal() {

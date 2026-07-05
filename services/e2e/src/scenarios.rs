@@ -10,7 +10,7 @@ use crate::helpers::{
     ch_query, pg_query, query_service_get, query_service_post, query_service_post_status,
     send_ingest, send_ingest_raw, wait_for_event_id, wait_for_events,
 };
-use crate::{fail, pass, PROJECT_ID, RP_CONTAINER, SECRET_KEY, TIMEOUT_SECS};
+use crate::{fail, pass, ARCHIVE_S3_BUCKET, MINIO_CONTAINER, PROJECT_ID, RP_CONTAINER, SECRET_KEY, TIMEOUT_SECS};
 
 // ── Scenarios: Core Pipeline ───────────────────────────────────────
 
@@ -1356,6 +1356,56 @@ pub(crate) async fn scenario_concurrent_ingestion() -> Result<()> {
         pass!("concurrent: exactly 10 events in ClickHouse");
     } else {
         fail!("concurrent: expected 10 events, got '{}'", count.trim());
+    }
+
+    Ok(())
+}
+
+pub(crate) async fn scenario_archive() -> Result<()> {
+    info!("Scenario: Archiver writes Parquet to S3");
+
+    let ts = Utc::now().timestamp_millis();
+    let event_id = format!("e2e-archive-{}", ts);
+    let raw = format!(
+        r#"{{"messageId":"{}","type":"track","anonymousId":"anon_archive","event":"Archive Test","properties":{{}},"originalTimestamp":"2026-07-05T12:00:00.000Z","sentAt":"2026-07-05T12:00:00.000Z","receivedAt":"2026-07-05T12:00:01.000Z","ip":"127.0.0.1","context":{{"library":{{"name":"test","version":"1.0"}},"page":{{"url":"","path":"","referrer":"","title":"","search":""}},"screen":{{"width":0,"height":0,"density":1}},"userAgent":"test","locale":"en-US","timezone":"UTC","campaign":{{"source":null,"medium":null,"name":null,"term":null,"content":null}},"ip":null}},"projectId":"proj_test"}}"#,
+        event_id
+    );
+
+    match crate::helpers::docker_exec_stdin(
+        RP_CONTAINER,
+        &["rpk", "topic", "produce", "raw-events", "--key", &event_id],
+        &raw,
+    ) {
+        Ok(_) => pass!("archive: produced event to raw-events"),
+        Err(e) => {
+            fail!("archive: produce failed: {}", e);
+            return Ok(());
+        }
+    }
+
+    info!("archive: waiting 15s for archiver to consume and flush to MinIO...");
+    sleep(Duration::from_secs(15)).await;
+
+    let ls_result = crate::helpers::docker_exec(
+        MINIO_CONTAINER,
+        &[
+            "mc",
+            "ls",
+            "--recursive",
+            format!("local/{}/", ARCHIVE_S3_BUCKET).as_str(),
+        ],
+    );
+
+    match ls_result {
+        Ok(output) if !output.trim().is_empty() => {
+            pass!("archive: Parquet files found in MinIO:\n{}", output);
+        }
+        Ok(_) => {
+            fail!("archive: no Parquet files found in MinIO bucket");
+        }
+        Err(e) => {
+            fail!("archive: MinIO ls failed: {}", e);
+        }
     }
 
     Ok(())
