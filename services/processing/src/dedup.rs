@@ -12,13 +12,16 @@ pub async fn filter(
     let mut out = Vec::with_capacity(batch.len());
     let mut seen_in_batch = HashSet::new();
     for event in batch {
+        if !seen_in_batch.insert(event.message_id.clone()) {
+            continue;
+        }
         let key = format!("seen:{}", event.message_id);
         let already_seen: bool = redis::cmd("EXISTS")
             .arg(&key)
             .query_async::<i64>(redis)
             .await
             .map(|r| r > 0)?;
-        if !already_seen && seen_in_batch.insert(event.message_id.clone()) {
+        if !already_seen {
             out.push(event);
         }
     }
