@@ -7,6 +7,7 @@ members = [
     "query",
     "archiver",
     "dashboard",
+    "cli",
     "e2e",
 ]
 resolver = "2"

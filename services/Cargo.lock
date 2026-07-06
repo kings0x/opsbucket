@@ -2019,6 +2019,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "opsbucket-cli"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "clap",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "opsbucket-dashboard"
 version = "0.1.0"
 dependencies = [
