@@ -19,4 +19,5 @@ rand = "0.8"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tower-http = { version = "0.5", features = ["cors", "trace"] }
+rust-embed = { version = "8", features = ["include-exclude"] }
 opsbucket-shared = { path = "../shared" }

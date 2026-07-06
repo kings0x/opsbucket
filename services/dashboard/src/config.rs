@@ -3,6 +3,7 @@ pub struct Config {
     pub database_url: String,
     pub redis_url: String,
     pub query_url: String,
+    pub query_secret_key: String,
     pub port: u16,
     pub rust_log: String,
     pub session_ttl_seconds: u64,
@@ -15,6 +16,7 @@ impl Config {
             redis_url: std::env::var("REDIS_URL").expect("REDIS_URL must be set"),
             query_url: std::env::var("QUERY_URL")
                 .unwrap_or_else(|_| "http://127.0.0.1:8081".into()),
+            query_secret_key: std::env::var("SECRET_KEY").expect("SECRET_KEY must be set"),
             port: std::env::var("PORT")
                 .ok()
                 .and_then(|v| v.parse().ok())

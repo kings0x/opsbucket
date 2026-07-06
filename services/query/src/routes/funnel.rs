@@ -16,7 +16,7 @@ pub async fn handler(
     headers: HeaderMap,
     body: Bytes,
 ) -> Result<Json<FunnelResponse>, AppError> {
-    check_auth(&headers, &state.secret_key).map_err(AppError::unauthorized)?;
+    check_auth(&headers, &state.secret_keys).await.map_err(AppError::unauthorized)?;
     let spec: FunnelSpec = serde_json::from_slice(&body)
         .map_err(|_| AppError::invalid_request("request body is empty or malformed".into()))?;
     builder::validate_funnel_with_max_date_range(&spec, state.config.max_date_range_days)

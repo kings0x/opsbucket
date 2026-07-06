@@ -3,7 +3,6 @@ use std::sync::Arc;
 use axum::extract::{Query, State};
 use axum::http::HeaderMap;
 use axum::Json;
-use serde::Deserialize;
 
 use std::collections::HashMap;
 
@@ -11,26 +10,14 @@ use crate::auth::secret_key::check_auth;
 use crate::ch::client;
 use crate::identity;
 use crate::queries::{builder, raw_events};
-use crate::{AppError, AppState, ClickHouseEventRow, EventRow, EventsResponse};
-
-#[derive(Deserialize)]
-pub struct EventsParams {
-    #[serde(rename = "projectId")]
-    pub project_id: String,
-    #[serde(rename = "eventName")]
-    pub event_name: Option<String>,
-    #[serde(rename = "userId")]
-    pub user_id: Option<String>,
-    pub limit: Option<u64>,
-    pub cursor: Option<String>,
-}
+use crate::{AppError, AppState, ClickHouseEventRow, EventRow, EventsParams, EventsResponse};
 
 pub async fn handler(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     Query(params): Query<EventsParams>,
 ) -> Result<Json<EventsResponse>, AppError> {
-    check_auth(&headers, &state.secret_key).map_err(AppError::unauthorized)?;
+    check_auth(&headers, &state.secret_keys).await.map_err(AppError::unauthorized)?;
 
     builder::validate_string(&params.project_id, "projectId").map_err(AppError::invalid_request)?;
     if let Some(event_name) = params.event_name.as_deref() {

@@ -8,8 +8,9 @@ use tower_http::trace::TraceLayer;
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 
+use opsbucket_query::auth::secret_key_store::SecretKeyStore;
 use opsbucket_query::config::Config;
-use opsbucket_query::routes::{events, funnel, health, retention, segment};
+use opsbucket_query::routes::{events, funnel, health, retention, schema, segment, stats};
 use opsbucket_query::AppState;
 
 #[tokio::main]
@@ -30,11 +31,15 @@ async fn main() -> anyhow::Result<()> {
     let ch = ::clickhouse::Client::default()
         .with_url(&config.clickhouse_url)
         .with_user(&config.clickhouse_user)
-        .with_password(&config.clickhouse_password);
+        .with_password(&config.clickhouse_password)
+        .with_database("default");
     info!("clickhouse client created");
 
+    let secret_keys = SecretKeyStore::new(pg.clone(), config.secret_key.clone()).await;
+    secret_keys.start_background_refresh();
+
     let state = Arc::new(AppState {
-        secret_key: config.secret_key.clone(),
+        secret_keys,
         pg,
         redis,
         ch_client: ch,
@@ -46,6 +51,8 @@ async fn main() -> anyhow::Result<()> {
         .route("/v1/query/retention", post(retention::handler))
         .route("/v1/query/segment", post(segment::handler))
         .route("/v1/query/events", get(events::handler))
+        .route("/v1/query/schema", get(schema::handler))
+        .route("/v1/query/stats", get(stats::handler))
         .route("/health", get(health::handler))
         .layer(cors_layer(&config.cors_allowed_origins))
         .layer(TraceLayer::new_for_http())

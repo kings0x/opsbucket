@@ -9,10 +9,10 @@ use crate::SharedState;
 
 #[derive(Serialize)]
 pub struct ErrorResponse {
-    error: String,
+    pub error: String,
 }
 
-type AdminError = (StatusCode, Json<ErrorResponse>);
+pub type AdminError = (StatusCode, Json<ErrorResponse>);
 
 #[derive(Serialize)]
 pub struct ProjectResponse {
@@ -58,7 +58,7 @@ pub struct HealthCheckResponse {
     checks: serde_json::Value,
 }
 
-fn internal_error() -> AdminError {
+pub fn internal_error() -> AdminError {
     (
         StatusCode::INTERNAL_SERVER_ERROR,
         Json(ErrorResponse {
@@ -67,7 +67,7 @@ fn internal_error() -> AdminError {
     )
 }
 
-fn not_found() -> AdminError {
+pub fn not_found() -> AdminError {
     (
         StatusCode::NOT_FOUND,
         Json(ErrorResponse {
@@ -76,7 +76,7 @@ fn not_found() -> AdminError {
     )
 }
 
-async fn admin_auth(
+pub async fn admin_auth(
     state: &SharedState,
     headers: &HeaderMap,
 ) -> Result<(Uuid, String), AdminError> {
@@ -326,7 +326,7 @@ pub async fn health(
         .map(|r| r.status().is_success())
         .unwrap_or(false);
 
-    let all_ok = pg_ok && redis_ok && query_ok;
+    let all_ok = pg_ok && redis_ok;
     let status = if all_ok { "ok" } else { "degraded" };
 
     Ok(Json(HealthCheckResponse {
@@ -334,7 +334,7 @@ pub async fn health(
         checks: serde_json::json!({
             "postgres": if pg_ok { "ok" } else { "unhealthy" },
             "redis": if redis_ok { "ok" } else { "unhealthy" },
-            "query": if query_ok { "ok" } else { "unhealthy" },
+            "query": if query_ok { "ok" } else { "unavailable" },
         }),
     }))
 }

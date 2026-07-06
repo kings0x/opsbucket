@@ -15,7 +15,7 @@ use axum::Json;
 use clickhouse::Row;
 
 pub struct AppState {
-    pub secret_key: String,
+    pub secret_keys: auth::secret_key_store::SecretKeyStore,
     pub pg: sqlx::PgPool,
     pub redis: redis::aio::ConnectionManager,
     pub ch_client: ::clickhouse::Client,
@@ -266,4 +266,60 @@ pub struct IdentityAlias {
 pub struct Cursor {
     pub ts: chrono::DateTime<chrono::Utc>,
     pub id: String,
+}
+
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SchemaResponse {
+    pub events: Vec<SchemaEvent>,
+    pub properties: std::collections::HashMap<String, Vec<String>>,
+}
+
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SchemaEvent {
+    pub name: String,
+    pub volume: u64,
+    pub first_seen: String,
+}
+
+#[derive(Debug, Row, serde::Deserialize)]
+pub struct SchemaEventRow {
+    pub event_name: String,
+    pub volume: u64,
+    pub first_seen: String,
+}
+
+#[derive(Debug, Row, serde::Deserialize)]
+pub struct SchemaPropertyRow {
+    pub event_name: String,
+    pub prop_key: String,
+}
+
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StatsResponse {
+    pub events_last_30_days: u64,
+    pub events_previous_30_days: u64,
+    pub trend_percent: f64,
+}
+
+#[derive(Debug, Row, serde::Deserialize)]
+pub struct StatsRow {
+    pub events_last_30: u64,
+    pub events_prev_30: u64,
+}
+
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EventsParams {
+    pub project_id: String,
+    #[serde(default)]
+    pub event_name: Option<String>,
+    #[serde(default)]
+    pub user_id: Option<String>,
+    #[serde(default)]
+    pub limit: Option<u64>,
+    #[serde(default)]
+    pub cursor: Option<String>,
 }

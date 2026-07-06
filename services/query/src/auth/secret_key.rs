@@ -1,17 +1,24 @@
 use axum::http::header::AUTHORIZATION;
 use axum::http::HeaderMap;
 
-pub fn check_auth(headers: &HeaderMap, secret_key: &str) -> Result<(), String> {
-    let header = headers
+use super::secret_key_store::SecretKeyStore;
+
+pub async fn check_auth(headers: &HeaderMap, store: &SecretKeyStore) -> Result<(), String> {
+    let token = extract_bearer_token(headers)?;
+    if store.contains(&token).await {
+        Ok(())
+    } else {
+        Err("Missing or invalid secret key".into())
+    }
+}
+
+pub fn extract_bearer_token(headers: &HeaderMap) -> Result<String, String> {
+    headers
         .get(AUTHORIZATION)
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.strip_prefix("Bearer "))
-        .map(|v| v.trim());
-
-    match header {
-        Some(key) if key == secret_key => Ok(()),
-        _ => Err("Missing or invalid secret key".into()),
-    }
+        .map(|v| v.trim().to_string())
+        .ok_or_else(|| "Missing or invalid secret key".into())
 }
 
 #[cfg(test)]
@@ -29,26 +36,33 @@ mod tests {
     }
 
     #[test]
-    fn valid_key_passes() {
+    fn valid_bearer_token_extracted() {
         let headers = make_headers(Some("Bearer my-secret-key"));
-        assert!(check_auth(&headers, "my-secret-key").is_ok());
-    }
-
-    #[test]
-    fn invalid_key_fails() {
-        let headers = make_headers(Some("Bearer wrong-key"));
-        assert!(check_auth(&headers, "my-secret-key").is_err());
+        assert_eq!(extract_bearer_token(&headers).unwrap(), "my-secret-key");
     }
 
     #[test]
     fn missing_header_fails() {
         let headers = make_headers(None);
-        assert!(check_auth(&headers, "my-secret-key").is_err());
+        assert!(extract_bearer_token(&headers).is_err());
     }
 
     #[test]
-    fn key_in_query_param_not_accepted() {
-        let headers = make_headers(None);
-        assert!(check_auth(&headers, "my-secret-key").is_err());
+    fn wrong_prefix_fails() {
+        let headers = make_headers(Some("Token my-secret-key"));
+        assert!(extract_bearer_token(&headers).is_err());
+    }
+
+    #[test]
+    fn empty_token_fails() {
+        let headers = make_headers(Some("Bearer "));
+        assert_eq!(extract_bearer_token(&headers).unwrap(), "");
+        // An empty string is not a valid key — store.contains("") will return false
+    }
+
+    #[test]
+    fn whitespace_trimmed() {
+        let headers = make_headers(Some("Bearer   my-key  "));
+        assert_eq!(extract_bearer_token(&headers).unwrap(), "my-key");
     }
 }

@@ -4,6 +4,7 @@ use std::sync::OnceLock;
 use axum::Router;
 use chrono::{DateTime, Duration, Utc};
 use clickhouse::Row;
+use opsbucket_query::auth::secret_key_store::SecretKeyStore;
 use opsbucket_query::config::Config;
 use opsbucket_query::AppState;
 use serde::Serialize;
@@ -115,8 +116,10 @@ pub async fn build_test_state(config_override: Option<Config>) -> Arc<AppState> 
         .await
         .expect("redis connection");
 
+    let secret_keys = SecretKeyStore::new(pg.clone(), config.secret_key.clone()).await;
+
     Arc::new(AppState {
-        secret_key: config.secret_key.clone(),
+        secret_keys,
         pg,
         redis,
         ch_client: ch,
