@@ -46,7 +46,7 @@ LIMIT ?",
             let params = vec![
                 QueryParam::String(project_id.to_string()),
                 QueryParam::String(event_name.to_string()),
-                QueryParam::U64(within as u64),
+                QueryParam::U64(within),
                 value_to_param(&cond.value),
                 QueryParam::U64(limit),
             ];

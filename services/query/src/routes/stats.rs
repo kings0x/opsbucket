@@ -19,7 +19,9 @@ pub async fn handler(
     headers: HeaderMap,
     Query(params): Query<StatsParams>,
 ) -> Result<Json<StatsResponse>, AppError> {
-    check_auth(&headers, &state.secret_keys).await.map_err(AppError::unauthorized)?;
+    check_auth(&headers, &state.secret_keys, &params.project_id)
+        .await
+        .map_err(AppError::unauthorized)?;
 
     let sql = "
         SELECT
@@ -43,7 +45,8 @@ pub async fn handler(
     });
 
     let trend_percent = if row.events_prev_30 > 0 {
-        ((row.events_last_30 as f64 - row.events_prev_30 as f64) / row.events_prev_30 as f64) * 100.0
+        ((row.events_last_30 as f64 - row.events_prev_30 as f64) / row.events_prev_30 as f64)
+            * 100.0
     } else if row.events_last_30 > 0 {
         100.0
     } else {

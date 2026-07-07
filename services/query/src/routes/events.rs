@@ -17,9 +17,10 @@ pub async fn handler(
     headers: HeaderMap,
     Query(params): Query<EventsParams>,
 ) -> Result<Json<EventsResponse>, AppError> {
-    check_auth(&headers, &state.secret_keys).await.map_err(AppError::unauthorized)?;
-
     builder::validate_string(&params.project_id, "projectId").map_err(AppError::invalid_request)?;
+    check_auth(&headers, &state.secret_keys, &params.project_id)
+        .await
+        .map_err(AppError::unauthorized)?;
     if let Some(event_name) = params.event_name.as_deref() {
         builder::validate_string(event_name, "eventName").map_err(AppError::invalid_request)?;
     }

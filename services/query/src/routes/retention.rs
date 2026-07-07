@@ -9,18 +9,22 @@ use crate::auth::secret_key::check_auth;
 use crate::cache;
 use crate::ch::client;
 use crate::queries::{builder, retention};
-use crate::{AppError, AppState, Cohort, CohortPeriod, RetentionResponse, RetentionRow, RetentionSpec};
+use crate::{
+    AppError, AppState, Cohort, CohortPeriod, RetentionResponse, RetentionRow, RetentionSpec,
+};
 
 pub async fn handler(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     body: Bytes,
 ) -> Result<Json<RetentionResponse>, AppError> {
-    check_auth(&headers, &state.secret_keys).await.map_err(AppError::unauthorized)?;
     let spec: RetentionSpec = serde_json::from_slice(&body)
         .map_err(|_| AppError::invalid_request("request body is empty or malformed".into()))?;
     builder::validate_retention_with_max_date_range(&spec, state.config.max_date_range_days)
         .map_err(AppError::invalid_request)?;
+    check_auth(&headers, &state.secret_keys, &spec.project_id)
+        .await
+        .map_err(AppError::unauthorized)?;
 
     let cache_key = cache::cache_key(&spec);
     let mut redis = state.redis.clone();

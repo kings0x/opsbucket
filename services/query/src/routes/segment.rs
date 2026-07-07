@@ -10,19 +10,19 @@ use crate::auth::secret_key::check_auth;
 use crate::cache;
 use crate::ch::client;
 use crate::queries::{builder, segment};
-use crate::{
-    AppError, AppState, SegmentResponse, SegmentRow, SegmentSpec,
-};
+use crate::{AppError, AppState, SegmentResponse, SegmentRow, SegmentSpec};
 
 pub async fn handler(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     body: Bytes,
 ) -> Result<Json<SegmentResponse>, AppError> {
-    check_auth(&headers, &state.secret_keys).await.map_err(AppError::unauthorized)?;
     let spec: SegmentSpec = serde_json::from_slice(&body)
         .map_err(|_| AppError::invalid_request("request body is empty or malformed".into()))?;
     builder::validate_segment(&spec).map_err(AppError::invalid_request)?;
+    check_auth(&headers, &state.secret_keys, &spec.project_id)
+        .await
+        .map_err(AppError::unauthorized)?;
 
     let cache_key = cache::cache_key(&spec);
     let mut redis = state.redis.clone();

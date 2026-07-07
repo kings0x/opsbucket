@@ -20,7 +20,9 @@ pub async fn handler(
     headers: HeaderMap,
     Query(params): Query<SchemaParams>,
 ) -> Result<Json<SchemaResponse>, AppError> {
-    check_auth(&headers, &state.secret_keys).await.map_err(AppError::unauthorized)?;
+    check_auth(&headers, &state.secret_keys, &params.project_id)
+        .await
+        .map_err(AppError::unauthorized)?;
 
     let events_sql = "
         SELECT
@@ -37,10 +39,13 @@ pub async fn handler(
         events_sql.to_string(),
         vec![client::QueryParam::String(params.project_id.clone())],
     );
-    let event_rows: Vec<SchemaEventRow> =
-        client::query_plan(&state.ch_client, &events_plan, state.config.query_timeout_seconds)
-            .await
-            .map_err(AppError::from)?;
+    let event_rows: Vec<SchemaEventRow> = client::query_plan(
+        &state.ch_client,
+        &events_plan,
+        state.config.query_timeout_seconds,
+    )
+    .await
+    .map_err(AppError::from)?;
 
     let props_sql = "
         SELECT
@@ -55,10 +60,13 @@ pub async fn handler(
         props_sql.to_string(),
         vec![client::QueryParam::String(params.project_id)],
     );
-    let prop_rows: Vec<SchemaPropertyRow> =
-        client::query_plan(&state.ch_client, &props_plan, state.config.query_timeout_seconds)
-            .await
-            .map_err(AppError::from)?;
+    let prop_rows: Vec<SchemaPropertyRow> = client::query_plan(
+        &state.ch_client,
+        &props_plan,
+        state.config.query_timeout_seconds,
+    )
+    .await
+    .map_err(AppError::from)?;
 
     let events: Vec<_> = event_rows
         .into_iter()
@@ -71,10 +79,7 @@ pub async fn handler(
 
     let mut properties: HashMap<String, Vec<String>> = HashMap::new();
     for r in prop_rows {
-        properties
-            .entry(r.event_name)
-            .or_default()
-            .push(r.prop_key);
+        properties.entry(r.event_name).or_default().push(r.prop_key);
     }
 
     Ok(Json(SchemaResponse { events, properties }))

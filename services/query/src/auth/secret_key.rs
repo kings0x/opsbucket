@@ -3,9 +3,16 @@ use axum::http::HeaderMap;
 
 use super::secret_key_store::SecretKeyStore;
 
-pub async fn check_auth(headers: &HeaderMap, store: &SecretKeyStore) -> Result<(), String> {
+pub async fn check_auth(
+    headers: &HeaderMap,
+    store: &SecretKeyStore,
+    project_id: &str,
+) -> Result<(), String> {
     let token = extract_bearer_token(headers)?;
-    if store.contains(&token).await {
+    if project_id.is_empty() {
+        return Err("project_id is required".into());
+    }
+    if store.check_key_for_project(&token, project_id).await {
         Ok(())
     } else {
         Err("Missing or invalid secret key".into())
