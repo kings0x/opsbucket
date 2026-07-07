@@ -10,7 +10,10 @@ use crate::helpers::{
     ch_query, pg_query, query_service_get, query_service_post, query_service_post_status,
     send_ingest, send_ingest_raw, wait_for_event_id, wait_for_events,
 };
-use crate::{fail, pass, ARCHIVE_S3_BUCKET, MINIO_CONTAINER, PROJECT_ID, RP_CONTAINER, SECRET_KEY, TIMEOUT_SECS};
+use crate::{
+    fail, pass, ARCHIVE_S3_BUCKET, MINIO_CONTAINER, PROJECT_ID, RP_CONTAINER, SECRET_KEY,
+    TIMEOUT_SECS,
+};
 
 // ── Scenarios: Core Pipeline ───────────────────────────────────────
 

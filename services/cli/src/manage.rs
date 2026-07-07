@@ -51,11 +51,7 @@ pub async fn logs(
     Ok(())
 }
 
-pub async fn restart(
-    cfg: &OpsBucketConfig,
-    dir: &Path,
-    service: &str,
-) -> Result<()> {
+pub async fn restart(cfg: &OpsBucketConfig, dir: &Path, service: &str) -> Result<()> {
     info!("restarting {}...", service);
     let compose_file = dir.join("docker-compose.yml");
     let output = tokio::process::Command::new("docker")
@@ -79,11 +75,7 @@ pub async fn restart(
     Ok(())
 }
 
-pub async fn uninstall(
-    cfg: &OpsBucketConfig,
-    dir: &Path,
-    keep_volumes: bool,
-) -> Result<()> {
+pub async fn uninstall(cfg: &OpsBucketConfig, dir: &Path, keep_volumes: bool) -> Result<()> {
     info!("uninstalling OpsBucket...");
 
     let compose_file = dir.join("docker-compose.yml");

@@ -9,17 +9,16 @@ use crate::AppState;
 
 const PROXY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(25);
 
-async fn proxy_get(
-    state: &Arc<AppState>,
-    path: &str,
-    query_string: &str,
-) -> Response {
+async fn proxy_get(state: &Arc<AppState>, path: &str, query_string: &str) -> Response {
     let url = format!("{}/v1/query/{}{}", state.query_url, path, query_string);
 
     match state
         .http_client
         .get(&url)
-        .header("Authorization", format!("Bearer {}", state.query_secret_key))
+        .header(
+            "Authorization",
+            format!("Bearer {}", state.query_secret_key),
+        )
         .timeout(PROXY_TIMEOUT)
         .send()
         .await
@@ -46,7 +45,10 @@ async fn proxy_post(state: &Arc<AppState>, path: &str, body: Bytes) -> Response 
     match state
         .http_client
         .post(&url)
-        .header("Authorization", format!("Bearer {}", state.query_secret_key))
+        .header(
+            "Authorization",
+            format!("Bearer {}", state.query_secret_key),
+        )
         .header("Content-Type", "application/json")
         .body(body)
         .timeout(PROXY_TIMEOUT)
@@ -69,24 +71,15 @@ async fn proxy_post(state: &Arc<AppState>, path: &str, body: Bytes) -> Response 
     }
 }
 
-pub async fn funnel_handler(
-    State(state): State<Arc<AppState>>,
-    body: Bytes,
-) -> Response {
+pub async fn funnel_handler(State(state): State<Arc<AppState>>, body: Bytes) -> Response {
     proxy_post(&state, "funnel", body).await
 }
 
-pub async fn retention_handler(
-    State(state): State<Arc<AppState>>,
-    body: Bytes,
-) -> Response {
+pub async fn retention_handler(State(state): State<Arc<AppState>>, body: Bytes) -> Response {
     proxy_post(&state, "retention", body).await
 }
 
-pub async fn segment_handler(
-    State(state): State<Arc<AppState>>,
-    body: Bytes,
-) -> Response {
+pub async fn segment_handler(State(state): State<Arc<AppState>>, body: Bytes) -> Response {
     proxy_post(&state, "segment", body).await
 }
 
@@ -99,7 +92,11 @@ pub async fn schema_handler(
         .map(|(k, v)| format!("{}={}", k, urlencoding(&v)))
         .collect::<Vec<_>>()
         .join("&");
-    let qs = if qs.is_empty() { String::new() } else { format!("?{}", qs) };
+    let qs = if qs.is_empty() {
+        String::new()
+    } else {
+        format!("?{}", qs)
+    };
     proxy_get(&state, "schema", &qs).await
 }
 
@@ -112,7 +109,11 @@ pub async fn stats_handler(
         .map(|(k, v)| format!("{}={}", k, urlencoding(&v)))
         .collect::<Vec<_>>()
         .join("&");
-    let qs = if qs.is_empty() { String::new() } else { format!("?{}", qs) };
+    let qs = if qs.is_empty() {
+        String::new()
+    } else {
+        format!("?{}", qs)
+    };
     proxy_get(&state, "stats", &qs).await
 }
 
@@ -125,7 +126,11 @@ pub async fn events_handler(
         .map(|(k, v)| format!("{}={}", k, urlencoding(&v)))
         .collect::<Vec<_>>()
         .join("&");
-    let qs = if qs.is_empty() { String::new() } else { format!("?{}", qs) };
+    let qs = if qs.is_empty() {
+        String::new()
+    } else {
+        format!("?{}", qs)
+    };
     proxy_get(&state, "events", &qs).await
 }
 

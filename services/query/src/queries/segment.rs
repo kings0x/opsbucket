@@ -94,6 +94,22 @@ LIMIT ?",
 
 pub fn build_plan(spec: &SegmentSpec) -> Result<(Vec<QueryPlan>, u64), String> {
     let subquery_limit = spec.limit.saturating_add(1);
+    if spec.conditions.is_empty() {
+        let sql = format!(
+            "SELECT DISTINCT COALESCE(user_id, anonymous_id) AS user_key
+FROM events
+WHERE project_id = ?
+LIMIT ?"
+        );
+        let plan = QueryPlan::new(
+            sql,
+            vec![
+                QueryParam::String(spec.project_id.clone()),
+                QueryParam::U64(subquery_limit),
+            ],
+        );
+        return Ok((vec![plan], spec.limit));
+    }
     let mut plans = Vec::new();
     for cond in &spec.conditions {
         let plan = build_plan_condition(cond, &spec.project_id, subquery_limit)?;

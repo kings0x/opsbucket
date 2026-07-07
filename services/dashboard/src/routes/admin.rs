@@ -101,12 +101,11 @@ pub async fn list_projects(
         created_at: chrono::DateTime<chrono::Utc>,
     }
 
-    let rows: Vec<ProjectRow> = sqlx::query_as(
-        "SELECT id, name, created_at FROM projects ORDER BY created_at DESC",
-    )
-    .fetch_all(&state.pg)
-    .await
-    .map_err(|_| internal_error())?;
+    let rows: Vec<ProjectRow> =
+        sqlx::query_as("SELECT id, name, created_at FROM projects ORDER BY created_at DESC")
+            .fetch_all(&state.pg)
+            .await
+            .map_err(|_| internal_error())?;
 
     let projects = rows
         .into_iter()
@@ -200,12 +199,11 @@ pub async fn get_project_write_keys(
 ) -> Result<Json<WriteKeyListResponse>, AdminError> {
     admin_auth(&state, &headers).await?;
 
-    let exists: Option<(String,)> =
-        sqlx::query_as("SELECT id FROM projects WHERE id = $1")
-            .bind(&project_id)
-            .fetch_optional(&state.pg)
-            .await
-            .map_err(|_| internal_error())?;
+    let exists: Option<(String,)> = sqlx::query_as("SELECT id FROM projects WHERE id = $1")
+        .bind(&project_id)
+        .fetch_optional(&state.pg)
+        .await
+        .map_err(|_| internal_error())?;
 
     if exists.is_none() {
         return Err(not_found());
@@ -247,12 +245,11 @@ pub async fn create_write_key(
 ) -> Result<Json<WriteKeyResponse>, AdminError> {
     admin_auth(&state, &headers).await?;
 
-    let exists: Option<(String,)> =
-        sqlx::query_as("SELECT id FROM projects WHERE id = $1")
-            .bind(&project_id)
-            .fetch_optional(&state.pg)
-            .await
-            .map_err(|_| internal_error())?;
+    let exists: Option<(String,)> = sqlx::query_as("SELECT id FROM projects WHERE id = $1")
+        .bind(&project_id)
+        .fetch_optional(&state.pg)
+        .await
+        .map_err(|_| internal_error())?;
 
     if exists.is_none() {
         return Err(not_found());
@@ -306,10 +303,7 @@ pub async fn health(
 ) -> Result<Json<HealthCheckResponse>, AdminError> {
     admin_auth(&state, &headers).await?;
 
-    let pg_ok = sqlx::query("SELECT 1")
-        .execute(&state.pg)
-        .await
-        .is_ok();
+    let pg_ok = sqlx::query("SELECT 1").execute(&state.pg).await.is_ok();
 
     let mut redis = state.redis.clone();
     let redis_ok = redis::cmd("PING")

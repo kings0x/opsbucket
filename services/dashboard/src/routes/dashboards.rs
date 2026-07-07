@@ -79,7 +79,10 @@ pub struct AddWidgetRequest {
     h: Option<i32>,
 }
 
-async fn get_widgets(state: &SharedState, dashboard_id: Uuid) -> Result<Vec<WidgetResponse>, admin::AdminError> {
+async fn get_widgets(
+    state: &SharedState,
+    dashboard_id: Uuid,
+) -> Result<Vec<WidgetResponse>, admin::AdminError> {
     #[derive(sqlx::FromRow)]
     struct WidgetRow {
         id: Uuid,
@@ -293,12 +296,11 @@ pub async fn add_widget(
 ) -> Result<Json<WidgetResponse>, admin::AdminError> {
     admin::admin_auth(&state, &headers).await?;
 
-    let exists: Option<(Uuid,)> =
-        sqlx::query_as("SELECT id FROM dashboards WHERE id = $1")
-            .bind(dashboard_id)
-            .fetch_optional(&state.pg)
-            .await
-            .map_err(|_| admin::internal_error())?;
+    let exists: Option<(Uuid,)> = sqlx::query_as("SELECT id FROM dashboards WHERE id = $1")
+        .bind(dashboard_id)
+        .fetch_optional(&state.pg)
+        .await
+        .map_err(|_| admin::internal_error())?;
 
     if exists.is_none() {
         return Err(admin::not_found());

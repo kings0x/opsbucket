@@ -14,7 +14,20 @@ pub async fn update(cfg: &OpsBucketConfig, dir: &Path) -> Result<()> {
 
     // 2. Recreate migrator and run migrations
     info!("running migrations...");
-    run_compose(cfg, dir, &["up", "-d", "postgres", "redis", "redpanda", "clickhouse", "minio"]).await?;
+    run_compose(
+        cfg,
+        dir,
+        &[
+            "up",
+            "-d",
+            "postgres",
+            "redis",
+            "redpanda",
+            "clickhouse",
+            "minio",
+        ],
+    )
+    .await?;
     run_compose(cfg, dir, &["up", "migrator"]).await?;
 
     // 3. Recreate all services

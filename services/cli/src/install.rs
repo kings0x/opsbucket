@@ -7,10 +7,7 @@ use tracing::info;
 use crate::config::OpsBucketConfig;
 use crate::templates;
 
-pub async fn install(
-    cfg: &OpsBucketConfig,
-    dir: &Path,
-) -> Result<()> {
+pub async fn install(cfg: &OpsBucketConfig, dir: &Path) -> Result<()> {
     info!("installing OpsBucket to {}", dir.display());
 
     // 1. Write config files
@@ -20,14 +17,12 @@ pub async fn install(
     std::fs::write(dir.join("docker-compose.yml"), &compose)
         .context("failed to write docker-compose.yml")?;
     let caddyfile = templates::generate_caddyfile(cfg);
-    std::fs::write(dir.join("Caddyfile"), &caddyfile)
-        .context("failed to write Caddyfile")?;
+    std::fs::write(dir.join("Caddyfile"), &caddyfile).context("failed to write Caddyfile")?;
     let schema = templates::generate_clickhouse_schema();
     std::fs::write(dir.join("clickhouse-schema.sql"), schema)
         .context("failed to write clickhouse-schema.sql")?;
     let topics = templates::generate_topic_script();
-    std::fs::write(dir.join("topics.sh"), topics)
-        .context("failed to write topics.sh")?;
+    std::fs::write(dir.join("topics.sh"), topics).context("failed to write topics.sh")?;
 
     // 2. Pull images
     info!("pulling Docker images...");
@@ -38,13 +33,26 @@ pub async fn install(
     run_compose(
         cfg,
         dir,
-        &["up", "-d", "postgres", "redis", "redpanda", "clickhouse", "minio"],
+        &[
+            "up",
+            "-d",
+            "postgres",
+            "redis",
+            "redpanda",
+            "clickhouse",
+            "minio",
+        ],
     )
     .await?;
 
     // 4. Wait for infra health
     info!("waiting for infrastructure to be healthy...");
-    wait_for_healthy(cfg, dir, &["postgres", "redis", "redpanda", "clickhouse", "minio"]).await?;
+    wait_for_healthy(
+        cfg,
+        dir,
+        &["postgres", "redis", "redpanda", "clickhouse", "minio"],
+    )
+    .await?;
 
     // 5. Create Kafka topics
     info!("creating Kafka topics...");
@@ -52,14 +60,7 @@ pub async fn install(
         cfg,
         dir,
         "redpanda",
-        &[
-            "rpk",
-            "topic",
-            "create",
-            "raw-events",
-            "--partitions",
-            "12",
-        ],
+        &["rpk", "topic", "create", "raw-events", "--partitions", "12"],
     )
     .await?;
     docker_exec(
@@ -186,7 +187,10 @@ pub async fn install(
     println!("  SDK Configuration:");
     println!("    Write Key:   {}", write_key);
     println!("    Project ID:  {}", project_id);
-    println!("    Endpoint:    {}://api.{}/v1/batch", protocol, cfg.domain);
+    println!(
+        "    Endpoint:    {}://api.{}/v1/batch",
+        protocol, cfg.domain
+    );
     println!();
     println!("  Query API Secret Key: {}", cfg.secret_key);
     println!();
@@ -217,11 +221,7 @@ pub async fn install(
     Ok(())
 }
 
-async fn run_compose(
-    cfg: &OpsBucketConfig,
-    dir: &Path,
-    args: &[&str],
-) -> Result<()> {
+async fn run_compose(cfg: &OpsBucketConfig, dir: &Path, args: &[&str]) -> Result<()> {
     let output = tokio::process::Command::new("docker")
         .arg("compose")
         .arg("-p")
@@ -241,11 +241,7 @@ async fn run_compose(
     Ok(())
 }
 
-async fn wait_for_healthy(
-    _cfg: &OpsBucketConfig,
-    _dir: &Path,
-    services: &[&str],
-) -> Result<()> {
+async fn wait_for_healthy(_cfg: &OpsBucketConfig, _dir: &Path, services: &[&str]) -> Result<()> {
     for service in services {
         let container = format!("opsbucket-{}", service);
         for _ in 0..30 {
@@ -349,7 +345,10 @@ async fn docker_exec(
         cmd.args(args);
     }
 
-    let output = cmd.output().await.context("failed to execute docker exec")?;
+    let output = cmd
+        .output()
+        .await
+        .context("failed to execute docker exec")?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);

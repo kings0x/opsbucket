@@ -147,7 +147,11 @@ impl ArchiverConsumer {
                             }
                             Err(e) => {
                                 let raw = String::from_utf8_lossy(payload).to_string();
-                                match self.dlq.send_raw(&raw, &e.to_string(), "deserialization").await {
+                                match self
+                                    .dlq
+                                    .send_raw(&raw, &e.to_string(), "deserialization")
+                                    .await
+                                {
                                     Ok(()) => {
                                         warn!(%offset, "malformed event sent to DLQ");
                                         partition_offsets.insert(partition, offset);
@@ -254,13 +258,32 @@ mod tests {
             user_id: None,
             original_timestamp: original_timestamp.to_string(),
             context: Context {
-                library: Library { name: "test".into(), version: "1.0".into() },
-                page: Page { url: "".into(), path: "".into(), referrer: "".into(), title: "".into(), search: "".into() },
-                screen: Screen { width: 0, height: 0, density: 1.0 },
+                library: Library {
+                    name: "test".into(),
+                    version: "1.0".into(),
+                },
+                page: Page {
+                    url: "".into(),
+                    path: "".into(),
+                    referrer: "".into(),
+                    title: "".into(),
+                    search: "".into(),
+                },
+                screen: Screen {
+                    width: 0,
+                    height: 0,
+                    density: 1.0,
+                },
                 user_agent: "test".into(),
                 locale: "en-US".into(),
                 timezone: "UTC".into(),
-                campaign: Campaign { source: None, medium: None, name: None, term: None, content: None },
+                campaign: Campaign {
+                    source: None,
+                    medium: None,
+                    name: None,
+                    term: None,
+                    content: None,
+                },
                 ip: None,
             },
             event: None,
@@ -311,5 +334,4 @@ mod tests {
         let key = archive_key("test", "2026-12-31", 999, 1);
         assert_eq!(key, "test/dt/2026-12-31/part-999-1.parquet");
     }
-
 }

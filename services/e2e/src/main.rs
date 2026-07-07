@@ -158,7 +158,8 @@ async fn main() -> anyhow::Result<()> {
 
     // ── Phase 4: Start Services ──
     println!("\n\x1b[1m── Phase 4: Start Services ──\x1b[0m\n");
-    let (_ingest_guard, _processing_guard, _query_guard, _archiver_guard) = setup::start_services()?;
+    let (_ingest_guard, _processing_guard, _query_guard, _archiver_guard) =
+        setup::start_services()?;
 
     helpers::wait_for_port(HOST_LOOPBACK, INGEST_PORT, "Ingestion", 30).await?;
     info!("processing waiting 5s for initial poll...");

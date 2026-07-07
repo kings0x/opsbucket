@@ -97,9 +97,7 @@ async fn create_session(
     Ok(token)
 }
 
-fn extract_session_token(
-    headers: &HeaderMap,
-) -> Result<String, AuthError> {
+fn extract_session_token(headers: &HeaderMap) -> Result<String, AuthError> {
     let cookie = headers
         .get("Authorization")
         .and_then(|v| v.to_str().ok())
@@ -172,12 +170,10 @@ pub async fn setup(
         ));
     }
 
-    let existing: Option<(Uuid,)> = sqlx::query_as(
-        "SELECT id FROM admin_users LIMIT 1",
-    )
-    .fetch_optional(&state.pg)
-    .await
-    .map_err(|_| internal_error())?;
+    let existing: Option<(Uuid,)> = sqlx::query_as("SELECT id FROM admin_users LIMIT 1")
+        .fetch_optional(&state.pg)
+        .await
+        .map_err(|_| internal_error())?;
 
     if existing.is_some() {
         return Err((
@@ -191,18 +187,16 @@ pub async fn setup(
     let password_hash = hash_password(&req.password).await?;
     let admin_id = Uuid::new_v4();
 
-    sqlx::query(
-        "INSERT INTO admin_users (id, email, password_hash) VALUES ($1, $2, $3)",
-    )
-    .bind(admin_id)
-    .bind(&req.email)
-    .bind(&password_hash)
-    .execute(&state.pg)
-    .await
-    .map_err(|e| {
-        tracing::error!(error = %e, "failed to create admin user");
-        internal_error()
-    })?;
+    sqlx::query("INSERT INTO admin_users (id, email, password_hash) VALUES ($1, $2, $3)")
+        .bind(admin_id)
+        .bind(&req.email)
+        .bind(&password_hash)
+        .execute(&state.pg)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "failed to create admin user");
+            internal_error()
+        })?;
 
     let token = create_session(&state, admin_id, &req.email).await?;
 
@@ -217,13 +211,12 @@ pub async fn login(
     State(state): State<SharedState>,
     Json(req): Json<LoginRequest>,
 ) -> Result<Json<AuthResponse>, AuthError> {
-    let row: Option<(Uuid, String)> = sqlx::query_as(
-        "SELECT id, password_hash FROM admin_users WHERE email = $1",
-    )
-    .bind(&req.email)
-    .fetch_optional(&state.pg)
-    .await
-    .map_err(|_| internal_error())?;
+    let row: Option<(Uuid, String)> =
+        sqlx::query_as("SELECT id, password_hash FROM admin_users WHERE email = $1")
+            .bind(&req.email)
+            .fetch_optional(&state.pg)
+            .await
+            .map_err(|_| internal_error())?;
 
     let (admin_id, password_hash) = row.ok_or_else(|| {
         (
@@ -275,13 +268,11 @@ pub async fn me(
     let (admin_id, _) = get_session(&state, &headers).await?;
 
     let row: Option<(String, Option<chrono::DateTime<chrono::Utc>>)> =
-        sqlx::query_as(
-            "SELECT email, last_login_at FROM admin_users WHERE id = $1",
-        )
-        .bind(admin_id)
-        .fetch_optional(&state.pg)
-        .await
-        .map_err(|_| internal_error())?;
+        sqlx::query_as("SELECT email, last_login_at FROM admin_users WHERE id = $1")
+            .bind(admin_id)
+            .fetch_optional(&state.pg)
+            .await
+            .map_err(|_| internal_error())?;
 
     let (email, last_login_at) = row.ok_or_else(|| {
         (

@@ -78,23 +78,19 @@ mod tests {
             .unwrap()
             .to_string();
 
-        sqlx::query(
-            "INSERT INTO admin_users (id, email, password_hash) VALUES ($1, $2, $3)",
-        )
-        .bind(admin_id)
-        .bind("admin@test.com")
-        .bind(&hash)
-        .execute(&pg)
-        .await
-        .unwrap();
+        sqlx::query("INSERT INTO admin_users (id, email, password_hash) VALUES ($1, $2, $3)")
+            .bind(admin_id)
+            .bind("admin@test.com")
+            .bind(&hash)
+            .execute(&pg)
+            .await
+            .unwrap();
 
-        let row: (String,) = sqlx::query_as(
-            "SELECT email FROM admin_users WHERE id = $1",
-        )
-        .bind(admin_id)
-        .fetch_one(&pg)
-        .await
-        .unwrap();
+        let row: (String,) = sqlx::query_as("SELECT email FROM admin_users WHERE id = $1")
+            .bind(admin_id)
+            .fetch_one(&pg)
+            .await
+            .unwrap();
 
         assert_eq!(row.0, "admin@test.com");
     }
@@ -104,23 +100,20 @@ mod tests {
         let (pg, _redis) = setup_db().await;
         let (admin_id, hash) = make_admin();
 
-        sqlx::query(
-            "INSERT INTO admin_users (id, email, password_hash) VALUES ($1, $2, $3)",
-        )
-        .bind(admin_id)
-        .bind("admin@test.com")
-        .bind(&hash)
-        .execute(&pg)
-        .await
-        .unwrap();
+        sqlx::query("INSERT INTO admin_users (id, email, password_hash) VALUES ($1, $2, $3)")
+            .bind(admin_id)
+            .bind("admin@test.com")
+            .bind(&hash)
+            .execute(&pg)
+            .await
+            .unwrap();
 
-        let row: Option<(String,)> = sqlx::query_as(
-            "SELECT password_hash FROM admin_users WHERE email = $1",
-        )
-        .bind("admin@test.com")
-        .fetch_optional(&pg)
-        .await
-        .unwrap();
+        let row: Option<(String,)> =
+            sqlx::query_as("SELECT password_hash FROM admin_users WHERE email = $1")
+                .bind("admin@test.com")
+                .fetch_optional(&pg)
+                .await
+                .unwrap();
 
         assert!(row.is_some());
     }
@@ -129,11 +122,10 @@ mod tests {
     async fn no_admin_returns_none() {
         let (pg, _redis) = setup_db().await;
 
-        let row: Option<(Uuid,)> =
-            sqlx::query_as("SELECT id FROM admin_users LIMIT 1")
-                .fetch_optional(&pg)
-                .await
-                .unwrap();
+        let row: Option<(Uuid,)> = sqlx::query_as("SELECT id FROM admin_users LIMIT 1")
+            .fetch_optional(&pg)
+            .await
+            .unwrap();
 
         assert!(row.is_none());
     }
@@ -183,13 +175,11 @@ mod tests {
             .unwrap();
 
         let rows: Vec<(String, Option<chrono::DateTime<chrono::Utc>>)> =
-            sqlx::query_as(
-                "SELECT key, revoked_at FROM write_keys WHERE project_id = $1",
-            )
-            .bind(&project_id)
-            .fetch_all(&pg)
-            .await
-            .unwrap();
+            sqlx::query_as("SELECT key, revoked_at FROM write_keys WHERE project_id = $1")
+                .bind(&project_id)
+                .fetch_all(&pg)
+                .await
+                .unwrap();
 
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].0, key);
@@ -211,15 +201,13 @@ mod tests {
         let key_id = Uuid::new_v4();
         let key = format!("wk_{}", Uuid::new_v4().to_string().replace('-', ""));
 
-        sqlx::query(
-            "INSERT INTO write_keys (id, project_id, key) VALUES ($1, $2, $3)",
-        )
-        .bind(key_id)
-        .bind(&project_id)
-        .bind(&key)
-        .execute(&pg)
-        .await
-        .unwrap();
+        sqlx::query("INSERT INTO write_keys (id, project_id, key) VALUES ($1, $2, $3)")
+            .bind(key_id)
+            .bind(&project_id)
+            .bind(&key)
+            .execute(&pg)
+            .await
+            .unwrap();
 
         sqlx::query(
             "UPDATE write_keys SET revoked_at = now() WHERE id = $1 AND revoked_at IS NULL",
@@ -229,13 +217,12 @@ mod tests {
         .await
         .unwrap();
 
-        let row: (Option<chrono::DateTime<chrono::Utc>>,) = sqlx::query_as(
-            "SELECT revoked_at FROM write_keys WHERE id = $1",
-        )
-        .bind(key_id)
-        .fetch_one(&pg)
-        .await
-        .unwrap();
+        let row: (Option<chrono::DateTime<chrono::Utc>>,) =
+            sqlx::query_as("SELECT revoked_at FROM write_keys WHERE id = $1")
+                .bind(key_id)
+                .fetch_one(&pg)
+                .await
+                .unwrap();
 
         assert!(row.0.is_some());
     }
@@ -272,11 +259,10 @@ mod tests {
             .await
             .unwrap();
 
-        let rows: Vec<(String,)> =
-            sqlx::query_as("SELECT id FROM projects")
-                .fetch_all(&pg)
-                .await
-                .unwrap();
+        let rows: Vec<(String,)> = sqlx::query_as("SELECT id FROM projects")
+            .fetch_all(&pg)
+            .await
+            .unwrap();
         assert_eq!(rows.len(), 0);
     }
 
@@ -310,8 +296,7 @@ mod tests {
 
         assert!(result.is_some());
 
-        let parsed: serde_json::Value =
-            serde_json::from_str(&result.unwrap()).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&result.unwrap()).unwrap();
         assert_eq!(parsed["email"], "admin@test.com");
     }
 

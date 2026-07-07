@@ -101,9 +101,6 @@ pub fn validate_retention_with_max_date_range(
 
 pub fn validate_segment(spec: &SegmentSpec) -> Result<(), String> {
     validate_string(&spec.project_id, "projectId")?;
-    if spec.conditions.is_empty() {
-        return Err("segment must have at least one condition".into());
-    }
     if spec.conditions.len() > MAX_SEGMENT_CONDITIONS {
         return Err(format!(
             "segment cannot exceed {} conditions",

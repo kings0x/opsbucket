@@ -6,8 +6,8 @@ use tracing::{info, warn};
 use crate::helpers::{cargo_run, docker_exec, docker_exec_stdin, wait_for_container};
 use crate::ServiceGuard;
 use crate::{
-    ARCHIVE_S3_BUCKET, CH_CONTAINER, CLICKHOUSE_URL, DATABASE_URL, KAFKA_BROKERS,
-    MINIO_CONTAINER, MINIO_ENDPOINT, PG_CONTAINER, REDIS_CONTAINER, REDIS_URL, RP_CONTAINER,
+    ARCHIVE_S3_BUCKET, CH_CONTAINER, CLICKHOUSE_URL, DATABASE_URL, KAFKA_BROKERS, MINIO_CONTAINER,
+    MINIO_ENDPOINT, PG_CONTAINER, REDIS_CONTAINER, REDIS_URL, RP_CONTAINER,
 };
 
 // ── Phase 1: Infrastructure ───────────────────────────────────────

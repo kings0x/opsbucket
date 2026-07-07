@@ -74,11 +74,18 @@ pub async fn status(_cfg: &OpsBucketConfig, _dir: &Path) -> Result<()> {
     println!();
 
     let client = reqwest::Client::new();
-    match client.get("http://127.0.0.1:8082/api/admin/health").send().await {
+    match client
+        .get("http://127.0.0.1:8082/api/admin/health")
+        .send()
+        .await
+    {
         Ok(resp) if resp.status().is_success() => {
             if let Ok(health) = resp.json::<serde_json::Value>().await {
                 println!("Dashboard Health:");
-                println!("  Status: {}", health["status"].as_str().unwrap_or("unknown"));
+                println!(
+                    "  Status: {}",
+                    health["status"].as_str().unwrap_or("unknown")
+                );
                 if let Some(checks) = health["checks"].as_object() {
                     for (svc, st) in checks {
                         let icon = if st == "ok" { "✅" } else { "❌" };

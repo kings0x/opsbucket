@@ -75,8 +75,7 @@ enum Command {
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "info".into()),
+            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
         )
         .init();
 
@@ -100,15 +99,10 @@ async fn main() -> anyhow::Result<()> {
             });
 
             if !dir.exists() {
-                std::fs::create_dir_all(&dir)
-                    .context("failed to create installation directory")?;
+                std::fs::create_dir_all(&dir).context("failed to create installation directory")?;
             }
 
-            let cfg = config::OpsBucketConfig::generate(
-                &password,
-                domain,
-                email,
-            );
+            let cfg = config::OpsBucketConfig::generate(&password, domain, email);
 
             println!();
             println!("═══ OpsBucket Install ═══");

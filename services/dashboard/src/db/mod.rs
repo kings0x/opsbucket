@@ -24,8 +24,7 @@ pub async fn init_pg(database_url: &str) -> Result<PgPool> {
 }
 
 pub async fn init_redis(redis_url: &str) -> Result<ConnectionManager> {
-    let client =
-        RedisClient::open(redis_url).context("failed to parse redis url")?;
+    let client = RedisClient::open(redis_url).context("failed to parse redis url")?;
     let conn = ConnectionManager::new(client)
         .await
         .context("failed to connect to redis")?;
