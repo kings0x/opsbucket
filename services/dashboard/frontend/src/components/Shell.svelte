@@ -1,7 +1,7 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte'
-  import { currentPage, searchOpen, currentProjectId } from '../lib/stores'
-  import type { PageId } from '../types'
+  import { location } from '../lib/router'
+  import { searchOpen, currentProjectId } from '../lib/stores'
   import Topbar from './Topbar.svelte'
   import WorkspaceBar from './WorkspaceBar.svelte'
   import Sidebar from './Sidebar.svelte'
@@ -34,6 +34,26 @@
       searchOpen.set(true)
     }
   }
+
+  const routes: Record<string, any> = {
+    '/': Home,
+    '/project': ProjectDashboard,
+    '/project/dashboards': Dashboards,
+    '/project/insights': Insights,
+    '/project/funnels': Funnels,
+    '/project/retention': Retention,
+    '/project/cohorts': Cohorts,
+    '/project/events': Events,
+    '/project/users': Users,
+    '/project/datamgmt': DataManagement,
+    '/project/apikeys': ApiKeys,
+    '/projects': Projects,
+    '/docs': Documentation,
+    '/settings': Settings,
+    '/whatsnew': WhatsNew,
+  }
+
+  $: component = routes[$location]
 </script>
 
 <svelte:window on:keydown={handleKeydown} />
@@ -43,40 +63,12 @@
   <WorkspaceBar />
   <div class="mw" role="main" class:sidebar-hidden={!$currentProjectId}>
     {#if $currentProjectId}
-      <Sidebar on:logout={onLogout} />
+      <Sidebar />
     {/if}
     <main class="ct">
       <div class="page-content">
-        {#if $currentPage === 'orgs'}
-          <Home />
-        {:else if $currentPage === 'project-dashboard'}
-          <ProjectDashboard />
-        {:else if $currentPage === 'projects'}
-          <Projects />
-        {:else if $currentPage === 'dashboards'}
-          <Dashboards />
-        {:else if $currentPage === 'insights'}
-          <Insights />
-        {:else if $currentPage === 'funnels'}
-          <Funnels />
-        {:else if $currentPage === 'retention'}
-          <Retention />
-        {:else if $currentPage === 'cohorts'}
-          <Cohorts />
-        {:else if $currentPage === 'events'}
-          <Events />
-        {:else if $currentPage === 'users'}
-          <Users />
-        {:else if $currentPage === 'datamgmt'}
-          <DataManagement />
-        {:else if $currentPage === 'apikeys'}
-          <ApiKeys />
-        {:else if $currentPage === 'docs'}
-          <Documentation />
-        {:else if $currentPage === 'settings'}
-          <Settings />
-        {:else if $currentPage === 'whatsnew'}
-          <WhatsNew />
+        {#if component}
+          <svelte:component this={component} />
         {/if}
       </div>
     </main>

@@ -134,6 +134,38 @@ pub struct RawEvent {
     pub name: Option<String>,
 }
 
+// ── Replay Types ─────────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RRWebEventValue {
+    #[serde(rename = "type")]
+    pub event_type: u32,
+    pub data: serde_json::Value,
+    pub timestamp: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReplayBatch {
+    pub session_id: String,
+    pub window_id: String,
+    pub chunk_seq: u32,
+    pub distinct_id: Option<String>,
+    pub project_id: String,
+    pub sdk_version: String,
+    pub events: Vec<RRWebEventValue>,
+    pub is_final: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReplayBatchEnvelope {
+    pub project_id: String,
+    pub received_at: String,
+    pub batch: ReplayBatch,
+}
+
 impl RawEvent {
     pub fn from_any(
         event: AnyEvent,

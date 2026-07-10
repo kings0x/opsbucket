@@ -7,7 +7,7 @@ use crate::helpers::{cargo_run, docker_exec, docker_exec_stdin, wait_for_contain
 use crate::ServiceGuard;
 use crate::{
     ARCHIVE_S3_BUCKET, CH_CONTAINER, CLICKHOUSE_URL, DATABASE_URL, KAFKA_BROKERS, MINIO_CONTAINER,
-    MINIO_ENDPOINT, PG_CONTAINER, REDIS_CONTAINER, REDIS_URL, RP_CONTAINER,
+    MINIO_ENDPOINT, PG_CONTAINER, REDIS_CONTAINER, REDIS_URL, REPLAY_S3_BUCKET, RP_CONTAINER,
 };
 
 // ── Phase 1: Infrastructure ───────────────────────────────────────
@@ -72,7 +72,12 @@ pub(crate) async fn wait_for_infrastructure() -> Result<()> {
 
 pub(crate) fn create_kafka_topics() -> Result<()> {
     info!("Creating Kafka topics...");
-    for (topic, partitions) in [("raw-events", "12"), ("raw-events-dlq", "1")] {
+    for (topic, partitions) in [
+        ("raw-events", "12"),
+        ("raw-events-dlq", "1"),
+        ("replay_events", "6"),
+        ("replay_events-dlq", "1"),
+    ] {
         let mut last_err = String::new();
         for attempt in 1..=5 {
             std::thread::sleep(std::time::Duration::from_millis(500 * attempt));
@@ -196,6 +201,24 @@ pub(crate) fn create_archive_bucket() -> Result<()> {
     Ok(())
 }
 
+pub(crate) fn create_replay_bucket() -> Result<()> {
+    info!("Creating MinIO bucket {}...", REPLAY_S3_BUCKET);
+    let result = docker_exec(
+        MINIO_CONTAINER,
+        &[
+            "mc",
+            "mb",
+            &format!("local/{}", REPLAY_S3_BUCKET),
+            "--ignore-existing",
+        ],
+    );
+    match result {
+        Ok(_) => info!("replay bucket created"),
+        Err(e) => warn!("bucket creation (may already exist): {}", e),
+    }
+    Ok(())
+}
+
 // ── Phase 3: Build ────────────────────────────────────────────────
 
 pub(crate) fn build_services() -> Result<()> {
@@ -205,6 +228,7 @@ pub(crate) fn build_services() -> Result<()> {
         "opsbucket-processing",
         "opsbucket-query",
         "opsbucket-archiver",
+        "opsbucket-retrace",
     ] {
         info!("building {}...", pkg);
         let status = Command::new("cargo")
@@ -224,7 +248,14 @@ pub(crate) fn build_services() -> Result<()> {
 
 // ── Phase 4: Start Services ───────────────────────────────────────
 
-pub(crate) fn start_services() -> Result<(ServiceGuard, ServiceGuard, ServiceGuard, ServiceGuard)> {
+pub(crate) fn start_services(
+) -> Result<(
+    ServiceGuard,
+    ServiceGuard,
+    ServiceGuard,
+    ServiceGuard,
+    ServiceGuard,
+)> {
     info!("Starting ingestion on port {}...", crate::INGEST_PORT);
     let ingestion = cargo_run(
         "opsbucket-ingestion",
@@ -273,6 +304,7 @@ pub(crate) fn start_services() -> Result<(ServiceGuard, ServiceGuard, ServiceGua
             ("CLICKHOUSE_URL", CLICKHOUSE_URL),
             ("CLICKHOUSE_USER", "default"),
             ("CLICKHOUSE_PASSWORD", "opsbucket"),
+            ("S3_ENDPOINT", crate::MINIO_ENDPOINT),
             ("PORT", &crate::QUERY_PORT.to_string()),
             ("RUST_LOG", "info"),
         ],
@@ -301,5 +333,29 @@ pub(crate) fn start_services() -> Result<(ServiceGuard, ServiceGuard, ServiceGua
     .context("starting archiver")?;
     let archiver_guard = ServiceGuard::new(archiver);
 
-    Ok((ingest_guard, processing_guard, query_guard, archiver_guard))
+    info!("Starting retrace consumer...");
+    let retrace = cargo_run(
+        "opsbucket-retrace",
+        &[],
+        &[
+            ("KAFKA_BROKERS", KAFKA_BROKERS),
+            ("DATABASE_URL", DATABASE_URL),
+            ("S3_ENDPOINT", MINIO_ENDPOINT),
+            ("S3_BUCKET", crate::REPLAY_S3_BUCKET),
+            ("S3_REGION", "us-east-1"),
+            ("S3_ACCESS_KEY", "minioadmin"),
+            ("S3_SECRET_KEY", "minioadmin"),
+            ("RUST_LOG", "debug"),
+        ],
+    )
+    .context("starting retrace")?;
+    let retrace_guard = ServiceGuard::new(retrace);
+
+    Ok((
+        ingest_guard,
+        processing_guard,
+        query_guard,
+        archiver_guard,
+        retrace_guard,
+    ))
 }

@@ -6,6 +6,7 @@ members = [
     "processing",
     "query",
     "archiver",
+    "retrace",
     "dashboard",
     "cli",
     "e2e",

@@ -1,23 +1,45 @@
 <script lang="ts">
-  import { searchOpen, navigateTo } from '../lib/stores'
-  import type { PageId } from '../types'
+  import { push } from '../lib/router'
+  import { searchOpen } from '../lib/stores'
 
-  const items: { id: PageId; label: string; icon: string }[] = [
-    { id: 'project-dashboard', label: 'Home', icon: 'ti ti-home' },
-    { id: 'projects', label: 'Projects', icon: 'ti ti-layout-2' },
-    { id: 'dashboards', label: 'Dashboards', icon: 'ti ti-layout-dashboard' },
-    { id: 'insights', label: 'Insights', icon: 'ti ti-chart-histogram' },
-    { id: 'funnels', label: 'Funnels', icon: 'ti ti-filter' },
-    { id: 'retention', label: 'Retention', icon: 'ti ti-repeat' },
-    { id: 'cohorts', label: 'Cohorts', icon: 'ti ti-users-group' },
-    { id: 'events', label: 'Events', icon: 'ti ti-list-details' },
-    { id: 'users', label: 'Users', icon: 'ti ti-user' },
-    { id: 'datamgmt', label: 'Data Management', icon: 'ti ti-database-cog' },
-    { id: 'apikeys', label: 'API Keys', icon: 'ti ti-key' },
-    { id: 'docs', label: 'Documentation', icon: 'ti ti-book' },
-    { id: 'settings', label: 'Settings', icon: 'ti ti-settings' },
-    { id: 'whatsnew', label: "What's new", icon: 'ti ti-sparkles' },
-  ]
+  const pathMap: Record<string, string> = {
+    Home: '/project',
+    Projects: '/projects',
+    Dashboards: '/project/dashboards',
+    Insights: '/project/insights',
+    Funnels: '/project/funnels',
+    Retention: '/project/retention',
+    Cohorts: '/project/cohorts',
+    Events: '/project/events',
+    Users: '/project/users',
+    'Data Management': '/project/datamgmt',
+    'API Keys': '/project/apikeys',
+    Documentation: '/docs',
+    Settings: '/settings',
+    "What's new": '/whatsnew',
+  }
+
+  let items = Object.entries(pathMap).map(([label, path]) => ({ label, path, icon: iconFor(label) }))
+
+  function iconFor(label: string): string {
+    const icons: Record<string, string> = {
+      Home: 'ti ti-home',
+      Projects: 'ti ti-layout-2',
+      Dashboards: 'ti ti-layout-dashboard',
+      Insights: 'ti ti-chart-histogram',
+      Funnels: 'ti ti-filter',
+      Retention: 'ti ti-repeat',
+      Cohorts: 'ti ti-users-group',
+      Events: 'ti ti-list-details',
+      Users: 'ti ti-user',
+      'Data Management': 'ti ti-database-cog',
+      'API Keys': 'ti ti-key',
+      Documentation: 'ti ti-book',
+      Settings: 'ti ti-settings',
+      "What's new": 'ti ti-sparkles',
+    }
+    return icons[label] || 'ti ti-file'
+  }
 
   let query = ''
   let selectedIndex = 0
@@ -34,8 +56,8 @@
     selectedIndex = 0
   }
 
-  function nav(id: PageId, label: string) {
-    navigateTo(id, label)
+  function nav(path: string) {
+    push(path)
     close()
   }
 
@@ -44,7 +66,7 @@
     if (e.key === 'ArrowDown') { e.preventDefault(); selectedIndex = Math.min(selectedIndex + 1, filtered.length - 1) }
     if (e.key === 'ArrowUp') { e.preventDefault(); selectedIndex = Math.max(selectedIndex - 1, 0) }
     if (e.key === 'Enter' && filtered[selectedIndex]) {
-      nav(filtered[selectedIndex].id, filtered[selectedIndex].label)
+      nav(filtered[selectedIndex].path)
     }
   }
 </script>
@@ -68,13 +90,13 @@
         <kbd class="kbd">ESC</kbd>
       </div>
       <div class="search-results" role="listbox">
-        {#each filtered as item, i (item.id)}
+        {#each filtered as item, i (item.path)}
           <button
             class="search-item"
             class:selected={i === selectedIndex}
             role="option"
             aria-selected={i === selectedIndex}
-            on:click={() => nav(item.id, item.label)}
+            on:click={() => nav(item.path)}
             on:mouseenter={() => selectedIndex = i}
           >
             <i class={item.icon}></i>

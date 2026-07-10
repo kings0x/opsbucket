@@ -86,6 +86,24 @@ impl SecretKeyStore {
 }
 
 #[cfg(test)]
+impl SecretKeyStore {
+    /// Create a store for testing that uses an in-memory map instead of Postgres.
+    /// Only available in test builds (behind `#[cfg(test)]`).
+    pub fn mock_store(env_key: &str, keys: Vec<(&str, Option<&str>)>) -> Self {
+        let mut map = HashMap::new();
+        map.insert(env_key.to_string(), None);
+        for (k, scope) in keys {
+            map.insert(k.to_string(), scope.map(|s| s.to_string()));
+        }
+        SecretKeyStore {
+            inner: Arc::new(RwLock::new(map)),
+            pg: PgPool::connect_lazy("postgres://localhost/opsbucket").unwrap(),
+            env_key: env_key.to_string(),
+        }
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
 

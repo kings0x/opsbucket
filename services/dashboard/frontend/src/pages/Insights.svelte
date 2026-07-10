@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte'
-  import { navigateTo, showToast, currentProjectId } from '../lib/stores'
+  import { push } from '../lib/router'
+  import { showToast, currentProjectId } from '../lib/stores'
   import { api } from '../lib/api'
   import { timeAgo } from '../lib/utils'
   import type { InsightResponse } from '../types'
@@ -28,10 +29,10 @@
 
   function navForType(type: string): string {
     switch (type) {
-      case 'funnel': return 'funnels'
-      case 'retention': return 'retention'
-      case 'segment': return 'users'
-      default: return 'insights'
+      case 'funnel': return '/project/funnels'
+      case 'retention': return '/project/retention'
+      case 'segment': return '/project/users'
+      default: return '/project/insights'
     }
   }
 
@@ -55,7 +56,7 @@
   }
 
   function openInsight(item: InsightResponse) {
-    navigateTo(navForType(item.type) as any, `${item.type}s`)
+    push(navForType(item.type))
   }
 </script>
 

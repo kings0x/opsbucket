@@ -1,4 +1,4 @@
-use std::env;
+use std::env::{self, VarError};
 
 #[derive(Debug, Clone)]
 pub struct Config {
@@ -20,35 +20,45 @@ pub struct Config {
 impl Config {
     pub fn load() -> Self {
         Self {
-            kafka_brokers: env::var("KAFKA_BROKERS").expect("KAFKA_BROKERS must be set"),
-            kafka_consumer_group: env::var("KAFKA_CONSUMER_GROUP")
-                .unwrap_or_else(|_| "opsbucket-processing".to_string()),
-            database_url: env::var("DATABASE_URL").expect("DATABASE_URL must be set"),
-            redis_url: env::var("REDIS_URL").expect("REDIS_URL must be set"),
-            clickhouse_url: env::var("CLICKHOUSE_URL").expect("CLICKHOUSE_URL must be set"),
-            clickhouse_user: env::var("CLICKHOUSE_USER").unwrap_or_else(|_| "default".to_string()),
-            clickhouse_password: env::var("CLICKHOUSE_PASSWORD").unwrap_or_else(|_| "".to_string()),
-            batch_size: env::var("BATCH_SIZE")
-                .ok()
-                .and_then(|v| v.parse().ok())
-                .unwrap_or(1000),
-            batch_timeout_ms: env::var("BATCH_TIMEOUT_MS")
-                .ok()
-                .and_then(|v| v.parse().ok())
-                .unwrap_or(5000),
-            dedup_ttl_seconds: env::var("DEDUP_TTL_SECONDS")
-                .ok()
-                .and_then(|v| v.parse().ok())
-                .unwrap_or(86400),
-            alias_cache_ttl_seconds: env::var("ALIAS_CACHE_TTL_SECONDS")
-                .ok()
-                .and_then(|v| v.parse().ok())
-                .unwrap_or(600),
-            dlq_max_retries: env::var("DLQ_MAX_RETRIES")
-                .ok()
-                .and_then(|v| v.parse().ok())
-                .unwrap_or(3),
-            rust_log: env::var("RUST_LOG").unwrap_or_else(|_| "info".to_string()),
+            kafka_brokers: get_env("KAFKA_BROKERS", None),
+            kafka_consumer_group: get_env("KAFKA_CONSUMER_GROUP", Some("opsbucket-processing")),
+            database_url: get_env("DATABASE_URL", None),
+            redis_url: get_env("REDIS_URL", None),
+            clickhouse_url: get_env("CLICKHOUSE_URL", None),
+            clickhouse_user: get_env("CLICKHOUSE_USER", Some("default")),
+            clickhouse_password: get_env("CLICKHOUSE_PASSWORD", Some("")),
+            batch_size: get_env("BATCH_SIZE", Some("1000")),
+            batch_timeout_ms: get_env("BATCH_TIMEOUT_MS", Some("5000")),
+            dedup_ttl_seconds: get_env("DEDUP_TTL_SECONDS", Some("86400")),
+            alias_cache_ttl_seconds: get_env("ALIAS_CACHE_TTL_SECONDS", Some("600")),
+            dlq_max_retries: get_env("DLQ_MAX_RETRIES", Some("3")),
+            rust_log: get_env("RUST_LOG", Some("info")),
         }
+    }
+}
+
+pub fn get_env<T>(name: &str, fallback: Option<&str>) -> T
+where
+    T: std::str::FromStr,
+    T::Err: std::fmt::Display,
+{
+    let value = env_or_fallback(name, fallback);
+
+    value
+        .parse()
+        .unwrap_or_else(|e| panic!("Invalid value for {name}: {e}"))
+}
+
+fn env_or_fallback(name: &str, fallback: Option<&str>) -> String {
+    match env::var(name) {
+        Ok(val) => val,
+        Err(e) => match e {
+            VarError::NotPresent => match fallback {
+                Some(val) => val.to_string(),
+                None => panic!("{} must be set", name),
+            },
+
+            _ => panic!("Error occured: {}", e),
+        },
     }
 }

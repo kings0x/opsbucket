@@ -9,6 +9,7 @@ pub struct Config {
     pub query_cache_ttl_seconds: u64,
     pub query_timeout_seconds: u64,
     pub max_date_range_days: u64,
+    pub s3_endpoint: String,
     pub cors_allowed_origins: Vec<String>,
     pub port: u16,
     pub rust_log: String,
@@ -35,6 +36,7 @@ impl Config {
                 .ok()
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(366),
+            s3_endpoint: std::env::var("S3_ENDPOINT").expect("S3_ENDPOINT must be set"),
             cors_allowed_origins: std::env::var("CORS_ALLOWED_ORIGINS")
                 .unwrap_or_default()
                 .split(',')

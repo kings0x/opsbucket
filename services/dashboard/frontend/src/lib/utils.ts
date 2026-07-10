@@ -4,10 +4,6 @@ export function formatNumber(n: number): string {
   return n.toLocaleString()
 }
 
-export function slugify(text: string): string {
-  return text.replace(/\s+/g, '-').toLowerCase()
-}
-
 export function timeAgo(iso: string): string {
   const ms = Date.now() - new Date(iso).getTime()
   const sec = Math.floor(ms / 1000)

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte'
+  import { setupCompleted } from '../lib/stores'
   import { api } from '../lib/api'
 
   const dispatch = createEventDispatcher()
@@ -17,11 +18,9 @@
       const res = await api.auth.login(email, password)
       dispatch('login', { token: res.token })
     } catch (err: any) {
-      if (err?.error === 'invalid_credentials') {
-        dispatch('needssetup')
-      } else {
-        error = err?.error || 'Login failed. Check your credentials.'
-      }
+      error = err?.error === 'no_admin'
+        ? 'No admin account exists. Set up your instance first.'
+        : err?.error || 'Login failed. Check your credentials.'
     }
     loading = false
   }
@@ -63,8 +62,11 @@
     </form>
 
     <p class="auth-foot">
-      This is a self-hosted instance.
-      <button class="sec-link" on:click={() => dispatch('needssetup')}>Set up now</button>
+      {#if $setupCompleted !== true}
+        <button class="sec-link" on:click={() => dispatch('needssetup')}>Set up now</button>
+      {:else}
+        Sign in with your admin account.
+      {/if}
     </p>
   </div>
 </div>

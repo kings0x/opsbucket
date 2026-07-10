@@ -44,6 +44,7 @@ pub(crate) const REDIS_CONTAINER: &str = "redis";
 pub(crate) const MINIO_CONTAINER: &str = "minio";
 pub(crate) const MINIO_ENDPOINT: &str = "http://127.0.0.1:9002";
 pub(crate) const ARCHIVE_S3_BUCKET: &str = "opsbucket-archive";
+pub(crate) const REPLAY_S3_BUCKET: &str = "opsbucket-replay";
 
 // ── Stats ──────────────────────────────────────────────────────────
 
@@ -147,6 +148,7 @@ async fn main() -> anyhow::Result<()> {
     setup::flush_redis()?;
     setup::apply_clickhouse_schema()?;
     setup::create_archive_bucket()?;
+    setup::create_replay_bucket()?;
 
     // ── Phase 3: Build ──
     println!("\n\x1b[1m── Phase 3: Build ──\x1b[0m\n");
@@ -158,7 +160,7 @@ async fn main() -> anyhow::Result<()> {
 
     // ── Phase 4: Start Services ──
     println!("\n\x1b[1m── Phase 4: Start Services ──\x1b[0m\n");
-    let (_ingest_guard, _processing_guard, _query_guard, _archiver_guard) =
+    let (_ingest_guard, _processing_guard, _query_guard, _archiver_guard, _retrace_guard) =
         setup::start_services()?;
 
     helpers::wait_for_port(HOST_LOOPBACK, INGEST_PORT, "Ingestion", 30).await?;
@@ -198,6 +200,22 @@ async fn main() -> anyhow::Result<()> {
     scenarios::scenario_dlq_path().await?;
     scenarios::scenario_archive().await?;
     scenarios::scenario_concurrent_ingestion().await?;
+    scenarios::scenario_replay_basic().await?;
+
+    // ── Phase 5b: Edge Case Scenarios ──
+    println!("\n\x1b[1m── Phase 5b: Edge Case Scenarios ──\x1b[0m\n");
+
+    info!("edge: additional wait for pipeline stability...");
+    sleep(Duration::from_secs(5)).await;
+
+    scenarios::scenario_missing_chunks().await?;
+    scenarios::scenario_multiple_sessions_same_distinct_id().await?;
+    scenarios::scenario_consumer_crash_recovery().await?;
+    scenarios::scenario_consumer_rebalance().await?;
+    scenarios::scenario_pipeline_latency().await?;
+    scenarios::scenario_service_restart().await?;
+    scenarios::scenario_infrastructure_failure().await?;
+    scenarios::scenario_cross_tenant_access().await?;
 
     // ── Summary ──
     let pass = PASS.load(Ordering::SeqCst);

@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use anyhow::Result;
 use async_trait::async_trait;
-use opsbucket_shared::events::RawEvent;
+use opsbucket_shared::events::{RawEvent, ReplayBatchEnvelope};
 use rdkafka::producer::{FutureProducer, FutureRecord, Producer};
 use rdkafka::util::Timeout;
 
@@ -11,6 +11,7 @@ use super::KafkaHealth;
 #[async_trait]
 pub trait EventProducer: Send + Sync {
     async fn send_raw(&self, project_id: &str, events: &[RawEvent]) -> Result<()>;
+    async fn send_replay(&self, project_id: &str, batch: &ReplayBatchEnvelope) -> Result<()>;
 }
 
 pub struct KafkaProducer {
@@ -48,6 +49,17 @@ impl EventProducer for KafkaProducer {
         }
         Ok(())
     }
+
+    async fn send_replay(&self, project_id: &str, batch: &ReplayBatchEnvelope) -> Result<()> {
+        let payload = serde_json::to_vec(batch)?;
+        let record = FutureRecord::to("replay_events")
+            .key(project_id)
+            .payload(&payload);
+        match self.producer.send(record, Duration::from_secs(5)).await {
+            Ok(_) => Ok(()),
+            Err(e) => Err(anyhow::anyhow!("kafka: {:#?}", e)),
+        }
+    }
 }
 
 #[async_trait]
@@ -62,6 +74,7 @@ impl KafkaHealth for KafkaProducer {
 
 pub struct MockProducer {
     pub messages: std::sync::Mutex<Vec<(String, Vec<RawEvent>)>>,
+    pub replay_messages: std::sync::Mutex<Vec<(String, ReplayBatchEnvelope)>>,
     pub fail_on_send: std::sync::Mutex<bool>,
     pub fail_health: std::sync::Mutex<bool>,
 }
@@ -70,6 +83,7 @@ impl Default for MockProducer {
     fn default() -> Self {
         Self {
             messages: std::sync::Mutex::new(Vec::new()),
+            replay_messages: std::sync::Mutex::new(Vec::new()),
             fail_on_send: std::sync::Mutex::new(false),
             fail_health: std::sync::Mutex::new(false),
         }
@@ -92,6 +106,17 @@ impl EventProducer for MockProducer {
             .lock()
             .unwrap()
             .push((project_id.to_string(), events.to_vec()));
+        Ok(())
+    }
+
+    async fn send_replay(&self, project_id: &str, batch: &ReplayBatchEnvelope) -> Result<()> {
+        if *self.fail_on_send.lock().unwrap() {
+            return Err(anyhow::anyhow!("mock: kafka unavailable"));
+        }
+        self.replay_messages
+            .lock()
+            .unwrap()
+            .push((project_id.to_string(), batch.clone()));
         Ok(())
     }
 }

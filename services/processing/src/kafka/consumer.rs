@@ -104,6 +104,8 @@ impl ProcessingConsumer {
                 }
                 Err(e) => {
                     error!(error = %e, "batch processing failed, retrying after backoff");
+                    //TODO
+                    //look this up check wether it is alright for it to keep on retrying or for it to shutdown itself after some time
                     tokio::time::sleep(Duration::from_secs(5)).await;
                 }
             }
@@ -155,6 +157,7 @@ impl ProcessingConsumer {
                 }
                 Ok(Err(_)) => {
                     if messages.is_empty() {
+                        //TODO: they can be an offset commit here before returning
                         return Ok(false);
                     }
                     break;
@@ -167,19 +170,7 @@ impl ProcessingConsumer {
 
         if messages.is_empty() {
             if !partition_offsets.is_empty() {
-                let mut tpl = TopicPartitionList::new();
-                for (partition, offset) in &partition_offsets {
-                    tpl.add_partition_offset(
-                        "raw-events",
-                        *partition,
-                        Offset::Offset(*offset + 1),
-                    )?;
-                }
-                info!(
-                    offsets = ?partition_offsets,
-                    "committing offsets after DLQ-only batch"
-                );
-                self.consumer.commit(&tpl, CommitMode::Sync)?;
+                self.commit_offsets(&partition_offsets).await?;
             }
             return Ok(false);
         }
@@ -187,15 +178,7 @@ impl ProcessingConsumer {
         self.process_events(messages).await?;
 
         if !partition_offsets.is_empty() {
-            let mut tpl = TopicPartitionList::new();
-            for (partition, offset) in &partition_offsets {
-                tpl.add_partition_offset("raw-events", *partition, Offset::Offset(*offset + 1))?;
-            }
-            info!(
-                offsets = ?partition_offsets,
-                "committing offsets after successful batch"
-            );
-            self.consumer.commit(&tpl, CommitMode::Sync)?;
+            self.commit_offsets(&partition_offsets).await?;
         }
 
         Ok(true)
@@ -285,5 +268,19 @@ impl ProcessingConsumer {
         stage: &str,
     ) -> Result<()> {
         self.dlq.send(event, reason, stage).await
+    }
+
+    async fn commit_offsets(&self, partition_offsets: &HashMap<i32, i64>) -> Result<()> {
+        let mut tpl = TopicPartitionList::new();
+        for (partition, offset) in partition_offsets {
+            tpl.add_partition_offset("raw-events", *partition, Offset::Offset(*offset + 1))?;
+        }
+        info!(
+            offsets = ?partition_offsets,
+            "committing offsets after successful batch"
+        );
+        self.consumer.commit(&tpl, CommitMode::Sync)?;
+
+        Ok(())
     }
 }

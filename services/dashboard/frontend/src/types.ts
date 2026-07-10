@@ -103,25 +103,7 @@ export interface EventsResponse {
   nextCursor?: string;
 }
 
-export type PageId =
-  | 'orgs'
-  | 'project-dashboard'
-  | 'projects'
-  | 'dashboards'
-  | 'insights'
-  | 'funnels'
-  | 'retention'
-  | 'cohorts'
-  | 'events'
-  | 'users'
-  | 'datamgmt'
-  | 'apikeys'
-  | 'docs'
-  | 'settings'
-  | 'whatsnew';
-
 export interface PinnedInsight {
-  slug: string;
   title: string;
   type: string;
 }

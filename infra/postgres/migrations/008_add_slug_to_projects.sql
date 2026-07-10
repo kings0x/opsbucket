@@ -1,0 +1,2 @@
+-- Intentionally empty: slug column was removed from the schema design.
+-- Projects are identified by project_id (proj_*) everywhere.

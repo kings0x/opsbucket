@@ -14,7 +14,7 @@ use crate::db;
 use crate::kafka::producer::KafkaProducer;
 use crate::kafka::KafkaHealth;
 use crate::rate_limiter::RateLimiter;
-use crate::routes::{batch, health};
+use crate::routes::{batch, health, replay};
 use crate::AppState;
 
 pub struct Server {
@@ -47,6 +47,11 @@ impl Server {
             self.config.rate_limit_refill,
         );
 
+        let replay_rate_limiter = RateLimiter::new(
+            self.config.rate_limit_capacity,
+            self.config.rate_limit_refill,
+        );
+
         let state = Arc::new(AppState {
             auth,
             kafka,
@@ -54,11 +59,13 @@ impl Server {
             pg: Arc::new(pg),
             redis: Arc::new(redis),
             rate_limiter: std::sync::Mutex::new(rate_limiter),
+            replay_rate_limiter: std::sync::Mutex::new(replay_rate_limiter),
             trust_proxy_headers: self.config.trust_proxy_headers,
         });
 
         let app = Router::new()
             .route("/v1/batch", post(batch::post_batch))
+            .route("/capture/replay", post(replay::post_replay))
             .route("/health", get(health::get_health))
             .layer(DefaultBodyLimit::max(1_048_576))
             .layer(cors_layer(&self.config.cors_allowed_origins))

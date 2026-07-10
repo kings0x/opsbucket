@@ -1,6 +1,26 @@
 <script lang="ts">
-  import { pageLabel, currentProjectId, currentProjectName, adminUser, navigateTo, leaveProject } from '../lib/stores'
-  import type { PageId } from '../types'
+  import { location, push } from '../lib/router'
+  import { currentProjectId, currentProjectName, adminUser, leaveProject } from '../lib/stores'
+
+  const labels: Record<string, string> = {
+    '/': 'Home',
+    '/project': 'Project Dashboard',
+    '/project/dashboards': 'Dashboards',
+    '/project/insights': 'Insights',
+    '/project/funnels': 'Funnels',
+    '/project/retention': 'Retention',
+    '/project/cohorts': 'Cohorts',
+    '/project/events': 'Events',
+    '/project/users': 'Users',
+    '/project/datamgmt': 'Data Management',
+    '/project/apikeys': 'API Keys',
+    '/projects': 'Projects',
+    '/docs': 'Documentation',
+    '/settings': 'Settings',
+    '/whatsnew': "What's new",
+  }
+
+  $: currentLabel = labels[$location] || 'OpsBucket'
 
   function orgName(): string {
     if ($adminUser) {
@@ -18,7 +38,7 @@
     if ($currentProjectId !== null) {
       leaveProject()
     } else {
-      navigateTo('orgs', 'Organization')
+      push('/')
     }
   }
 </script>
@@ -35,7 +55,7 @@
       {#if $currentProjectId && $currentProjectName}
         {$currentProjectName}
       {:else}
-        {$pageLabel}
+        {currentLabel}
       {/if}
     </span>
   </div>

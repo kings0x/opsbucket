@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte'
-  import { currentProjectId, currentProjectName, navigateTo, showToast } from '../lib/stores'
+  import { push } from '../lib/router'
+  import { currentProjectId, currentProjectName, showToast } from '../lib/stores'
   import { api } from '../lib/api'
   import { formatNumber, timeAgo } from '../lib/utils'
   import type { HealthCheckResponse, RawEvent, InsightResponse } from '../types'
@@ -171,7 +172,7 @@
         <div class="sec-ttl">Recent insights</div>
         <div class="sec-sub">Saved funnels, retention curves, and trend reports</div>
       </div>
-      <button class="sec-link" on:click={() => navigateTo('insights', 'Insights')}>View all <i class="ti ti-arrow-right" style="font-size:11px"></i></button>
+      <button class="sec-link" on:click={() => push('/project/insights')}>View all <i class="ti ti-arrow-right" style="font-size:11px"></i></button>
     </div>
     {#if loadingInsights}
       <div class="skeleton" style="height:80px;border-radius:10px"></div>
@@ -185,7 +186,7 @@
       <div class="in-grid">
         {#each recentInsights as insight}
           <!-- svelte-ignore a11y_click_events_have_key_events -->
-          <div class="in-card" role="button" tabindex="0" on:click={() => navigateTo(insight.nav, insight.type + 's')}>
+          <div class="in-card" role="button" tabindex="0" on:click={() => push('/project/' + (insight.nav === 'funnel' ? 'funnels' : insight.nav === 'segment' ? 'users' : insight.nav))}>
             <div class="in-ic" style="background:var(--pur-bg);color:var(--pur-t)"><i class={insight.icon}></i></div>
             <div class="in-title">{insight.title}</div>
             <div class="in-meta">{insight.type} &middot; {insight.time}</div>
@@ -201,7 +202,7 @@
         <div class="sec-ttl">Live event feed</div>
         <div class="sec-sub">Most recent events for {$currentProjectName}</div>
       </div>
-      <button class="sec-link" on:click={() => navigateTo('events', 'Events')}>Open raw explorer <i class="ti ti-arrow-right" style="font-size:11px"></i></button>
+      <button class="sec-link" on:click={() => push('/project/events')}>Open raw explorer <i class="ti ti-arrow-right" style="font-size:11px"></i></button>
     </div>
     {#if loadingLive}
       <div class="tbl-card">

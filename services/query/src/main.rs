@@ -10,7 +10,7 @@ use tracing_subscriber::EnvFilter;
 
 use opsbucket_query::auth::secret_key_store::SecretKeyStore;
 use opsbucket_query::config::Config;
-use opsbucket_query::routes::{events, funnel, health, retention, schema, segment, stats};
+use opsbucket_query::routes::{events, funnel, health, replay, retention, schema, segment, stats};
 use opsbucket_query::AppState;
 
 #[tokio::main]
@@ -51,6 +51,15 @@ async fn main() -> anyhow::Result<()> {
         .route("/v1/query/retention", post(retention::handler))
         .route("/v1/query/segment", post(segment::handler))
         .route("/v1/query/events", get(events::handler))
+        .route("/v1/query/replay/sessions", get(replay::list_sessions))
+        .route(
+            "/v1/query/replay/sessions/:session_id/chunks",
+            get(replay::list_chunks),
+        )
+        .route(
+            "/v1/query/replay/sessions/:session_id/chunks/:chunk_seq",
+            get(replay::get_chunk_data),
+        )
         .route("/v1/query/schema", get(schema::handler))
         .route("/v1/query/stats", get(stats::handler))
         .route("/health", get(health::handler))

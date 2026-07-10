@@ -1,33 +1,40 @@
 <script lang="ts">
-  import { isAuthenticated, adminUser } from './lib/stores'
+  import { isAuthenticated, adminUser, setupCompleted } from './lib/stores'
+  import { location, push } from './lib/router'
   import { api } from './lib/api'
   import Login from './pages/Login.svelte'
   import Setup from './pages/Setup.svelte'
   import Shell from './components/Shell.svelte'
 
   let checking = true
-  let needsSetup = false
 
   async function init() {
     checking = true
-    needsSetup = false
-
-    if (!api.token.get()) {
-      checking = false
-      return
-    }
+    setupCompleted.set(null)
 
     try {
-      const me = await api.auth.me()
-      adminUser.set(me)
-      isAuthenticated.set(true)
+      await api.auth.me()
+      setupCompleted.set(true)
     } catch (err: any) {
-      api.token.clear()
-      isAuthenticated.set(false)
-      if (err?.status === 409) {
-        needsSetup = false
+      if (err?.error === 'no_admin') {
+        setupCompleted.set(false)
+      } else {
+        setupCompleted.set(true)
       }
     }
+
+    const token = api.token.get()
+    if (token) {
+      try {
+        const me = await api.auth.me()
+        adminUser.set(me)
+        isAuthenticated.set(true)
+      } catch {
+        api.token.clear()
+        isAuthenticated.set(false)
+      }
+    }
+
     checking = false
   }
 
@@ -36,13 +43,16 @@
     const me = await api.auth.me()
     adminUser.set(me)
     isAuthenticated.set(true)
+    push('/')
   }
 
   async function handleSetup(token: string) {
     api.token.set(token)
+    setupCompleted.set(true)
     const me = await api.auth.me()
     adminUser.set(me)
     isAuthenticated.set(true)
+    push('/')
   }
 
   function handleLogout() {
@@ -50,14 +60,28 @@
     api.token.clear()
     adminUser.set(null)
     isAuthenticated.set(false)
+    push('/login')
   }
 
   function handleNeedsSetup() {
-    needsSetup = true
-    checking = false
+    push('/setup')
   }
 
   $: authenticated = $isAuthenticated
+
+  $: {
+    if (!checking && $setupCompleted !== null && $location) {
+      if ($location === '/setup' && $setupCompleted === true) {
+        push('/login')
+      } else if ($location === '/login' && $setupCompleted === false) {
+        push('/setup')
+      } else if ($location === '/login' && $isAuthenticated) {
+        push('/')
+      } else if (!$isAuthenticated && $location !== '/login' && $location !== '/setup') {
+        push('/login')
+      }
+    }
+  }
 
   init()
 </script>
@@ -66,11 +90,11 @@
   <div class="shell-loading">
     <div class="spinner"></div>
   </div>
-{:else if needsSetup}
+{:else if $location === '/setup'}
   <Setup on:setup={e => handleSetup(e.detail.token)} />
-{:else if !authenticated}
+{:else if $location === '/login' || !authenticated}
   <Login on:login={e => handleLogin(e.detail.token)} on:needssetup={handleNeedsSetup} />
-{:else}
+{:else if authenticated}
   <Shell on:logout={handleLogout} />
 {/if}
 

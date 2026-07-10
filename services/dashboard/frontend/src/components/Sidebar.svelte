@@ -1,28 +1,27 @@
 <script lang="ts">
-  import { currentPage, navigateTo } from '../lib/stores'
-  import type { PageId } from '../types'
+  import { link, location } from '../lib/router'
 
   interface NavItem {
-    id: PageId
+    path: string
     label: string
     icon: string
     section?: string
   }
 
   let items: NavItem[] = [
-    { id: 'project-dashboard', label: 'Home', icon: 'ti ti-home' },
-    { id: 'dashboards', label: 'Dashboards', icon: 'ti ti-layout-dashboard', section: 'Analyze' },
-    { id: 'insights', label: 'Insights', icon: 'ti ti-chart-histogram' },
-    { id: 'funnels', label: 'Funnels', icon: 'ti ti-filter' },
-    { id: 'retention', label: 'Retention', icon: 'ti ti-repeat' },
-    { id: 'cohorts', label: 'Cohorts', icon: 'ti ti-users-group' },
-    { id: 'events', label: 'Events', icon: 'ti ti-list-details', section: 'Data' },
-    { id: 'users', label: 'Users', icon: 'ti ti-user' },
-    { id: 'datamgmt', label: 'Data Management', icon: 'ti ti-database-cog' },
-    { id: 'apikeys', label: 'API Keys', icon: 'ti ti-key', section: 'More' },
-    { id: 'docs', label: 'Documentation', icon: 'ti ti-book' },
-    { id: 'settings', label: 'Settings', icon: 'ti ti-settings' },
-    { id: 'whatsnew', label: "What's new", icon: 'ti ti-sparkles' },
+    { path: '/project', label: 'Home', icon: 'ti ti-home' },
+    { path: '/project/dashboards', label: 'Dashboards', icon: 'ti ti-layout-dashboard', section: 'Analyze' },
+    { path: '/project/insights', label: 'Insights', icon: 'ti ti-chart-histogram' },
+    { path: '/project/funnels', label: 'Funnels', icon: 'ti ti-filter' },
+    { path: '/project/retention', label: 'Retention', icon: 'ti ti-repeat' },
+    { path: '/project/cohorts', label: 'Cohorts', icon: 'ti ti-users-group' },
+    { path: '/project/events', label: 'Events', icon: 'ti ti-list-details', section: 'Data' },
+    { path: '/project/users', label: 'Users', icon: 'ti ti-user' },
+    { path: '/project/datamgmt', label: 'Data Management', icon: 'ti ti-database-cog' },
+    { path: '/project/apikeys', label: 'API Keys', icon: 'ti ti-key', section: 'More' },
+    { path: '/docs', label: 'Documentation', icon: 'ti ti-book' },
+    { path: '/settings', label: 'Settings', icon: 'ti ti-settings' },
+    { path: '/whatsnew', label: "What's new", icon: 'ti ti-sparkles' },
   ]
 
   let sections: { label: string; items: NavItem[] }[] = []
@@ -37,11 +36,6 @@
     }
     sections = Object.entries(grouped).map(([label, items]) => ({ label, items }))
   }
-
-  function nav(id: PageId, label: string) {
-    navigateTo(id, label)
-  }
-
 </script>
 
 <nav class="sb" aria-label="Main navigation">
@@ -50,16 +44,16 @@
       <div class="nm" role="presentation">{section.label}</div>
     {/if}
     {#each section.items as item}
-      <button
+      <a
+        href={item.path}
+        use:link
         class="nl"
-        class:active={$currentPage === item.id}
-
-        aria-current={$currentPage === item.id ? 'page' : undefined}
-        on:click={() => nav(item.id, item.label)}
+        class:active={$location === item.path}
+        aria-current={$location === item.path ? 'page' : undefined}
       >
         <i class={item.icon} aria-hidden="true"></i>
         <span>{item.label}</span>
-      </button>
+      </a>
     {/each}
   {/each}
 </nav>

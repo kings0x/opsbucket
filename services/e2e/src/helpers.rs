@@ -244,6 +244,25 @@ pub(crate) async fn query_service_post(path: &str, body: &Value) -> Result<(u16,
     Ok((status, body_val))
 }
 
+pub(crate) async fn send_replay_ingest(batch: &Value) -> Value {
+    let client = reqwest::Client::new();
+    let resp = match client
+        .post(format!(
+            "http://{}:{}/capture/replay",
+            HOST_LOOPBACK, INGEST_PORT
+        ))
+        .header("Authorization", format!("Bearer {}", WRITE_KEY))
+        .header("Content-Type", "application/json")
+        .json(batch)
+        .send()
+        .await
+    {
+        Ok(r) => r,
+        Err(_) => return json!({}),
+    };
+    resp.json().await.unwrap_or(json!({}))
+}
+
 pub(crate) async fn query_service_post_status(path: &str, body: &Value, key: &str) -> Result<u16> {
     let client = reqwest::Client::new();
     let resp = client

@@ -75,6 +75,18 @@ pub fn build_router(state: Arc<AppState>) -> Router {
             "/v1/query/events",
             get(opsbucket_query::routes::events::handler),
         )
+        .route(
+            "/v1/query/replay/sessions",
+            get(opsbucket_query::routes::replay::list_sessions),
+        )
+        .route(
+            "/v1/query/replay/sessions/:session_id/chunks",
+            get(opsbucket_query::routes::replay::list_chunks),
+        )
+        .route(
+            "/v1/query/replay/sessions/:session_id/chunks/:chunk_seq",
+            get(opsbucket_query::routes::replay::get_chunk_data),
+        )
         .route("/health", get(opsbucket_query::routes::health::handler))
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())
@@ -93,6 +105,7 @@ pub async fn build_test_state(config_override: Option<Config>) -> Arc<AppState> 
         query_cache_ttl_seconds: 60,
         query_timeout_seconds: 30,
         max_date_range_days: 366,
+        s3_endpoint: "http://127.0.0.1:9000".into(),
         cors_allowed_origins: Vec::new(),
         port: 0,
         rust_log: "off".into(),

@@ -265,6 +265,20 @@ pub async fn me(
     State(state): State<SharedState>,
     headers: HeaderMap,
 ) -> Result<Json<MeResponse>, AuthError> {
+    let exists: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM admin_users)")
+        .fetch_one(&state.pg)
+        .await
+        .map_err(|_| internal_error())?;
+
+    if !exists {
+        return Err((
+            StatusCode::NOT_FOUND,
+            Json(ErrorResponse {
+                error: "no_admin".into(),
+            }),
+        ));
+    }
+
     let (admin_id, _) = get_session(&state, &headers).await?;
 
     let row: Option<(String, Option<chrono::DateTime<chrono::Utc>>)> =
