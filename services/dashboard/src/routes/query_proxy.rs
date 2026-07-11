@@ -89,7 +89,7 @@ pub async fn schema_handler(
 ) -> Response {
     let qs = query_string
         .iter()
-        .map(|(k, v)| format!("{}={}", k, urlencoding(&v)))
+        .map(|(k, v)| format!("{}={}", k, urlencoding(v)))
         .collect::<Vec<_>>()
         .join("&");
     let qs = if qs.is_empty() {
@@ -106,7 +106,7 @@ pub async fn stats_handler(
 ) -> Response {
     let qs = query_string
         .iter()
-        .map(|(k, v)| format!("{}={}", k, urlencoding(&v)))
+        .map(|(k, v)| format!("{}={}", k, urlencoding(v)))
         .collect::<Vec<_>>()
         .join("&");
     let qs = if qs.is_empty() {
@@ -123,7 +123,7 @@ pub async fn events_handler(
 ) -> Response {
     let qs = query_string
         .iter()
-        .map(|(k, v)| format!("{}={}", k, urlencoding(&v)))
+        .map(|(k, v)| format!("{}={}", k, urlencoding(v)))
         .collect::<Vec<_>>()
         .join("&");
     let qs = if qs.is_empty() {

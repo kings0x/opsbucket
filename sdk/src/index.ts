@@ -26,7 +26,6 @@ let transport: Transport | null = null
 let autocapture: Autocapture | null = null
 let replay: Replay | null = null
 let initialized = false
-let currentWriteKey = ''
 
 export function init(writeKey: string, options?: Partial<Config>): void {
   if (initialized) {
@@ -34,7 +33,7 @@ export function init(writeKey: string, options?: Partial<Config>): void {
     autocapture?.detach()
   }
 
-  currentWriteKey = writeKey
+  
   const config: Config = { endpoint: 'https://ingest.opsbucket.io', ...options }
   storage = new Storage(config)
   transport = new Transport(writeKey, config)

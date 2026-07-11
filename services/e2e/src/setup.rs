@@ -248,8 +248,7 @@ pub(crate) fn build_services() -> Result<()> {
 
 // ── Phase 4: Start Services ───────────────────────────────────────
 
-pub(crate) fn start_services(
-) -> Result<(
+pub(crate) fn start_services() -> Result<(
     ServiceGuard,
     ServiceGuard,
     ServiceGuard,

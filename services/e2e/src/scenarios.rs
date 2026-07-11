@@ -809,23 +809,55 @@ pub(crate) async fn scenario_replay_basic() -> Result<()> {
         return Ok(());
     }
 
-info!("replay: waiting up to 30s for retrace to consume and upload to S3...");
+    info!("replay: waiting up to 30s for retrace to consume and upload to S3...");
     let mut session_found = false;
     let mut chunk_found = false;
     for _ in 0..30 {
         let sc = crate::helpers::docker_exec(
             PG_CONTAINER,
-            &["psql", "-U", "opsbucket", "-d", "opsbucket", "-t", "-A", "-c",
-              &format!("SELECT count(*) FROM replay_sessions WHERE session_id='{}'", "e2e-replay-session-001")],
-        ).unwrap_or_default();
+            &[
+                "psql",
+                "-U",
+                "opsbucket",
+                "-d",
+                "opsbucket",
+                "-t",
+                "-A",
+                "-c",
+                &format!(
+                    "SELECT count(*) FROM replay_sessions WHERE session_id='{}'",
+                    "e2e-replay-session-001"
+                ),
+            ],
+        )
+        .unwrap_or_default();
         let cc = crate::helpers::docker_exec(
             PG_CONTAINER,
-            &["psql", "-U", "opsbucket", "-d", "opsbucket", "-t", "-A", "-c",
-              &format!("SELECT count(*) FROM replay_chunks WHERE session_id='{}'", "e2e-replay-session-001")],
-        ).unwrap_or_default();
-        if sc.trim() == "1" { session_found = true; }
-        if cc.trim() == "1" { chunk_found = true; }
-        if session_found && chunk_found { break; }
+            &[
+                "psql",
+                "-U",
+                "opsbucket",
+                "-d",
+                "opsbucket",
+                "-t",
+                "-A",
+                "-c",
+                &format!(
+                    "SELECT count(*) FROM replay_chunks WHERE session_id='{}'",
+                    "e2e-replay-session-001"
+                ),
+            ],
+        )
+        .unwrap_or_default();
+        if sc.trim() == "1" {
+            session_found = true;
+        }
+        if cc.trim() == "1" {
+            chunk_found = true;
+        }
+        if session_found && chunk_found {
+            break;
+        }
         sleep(Duration::from_secs(1)).await;
     }
 
@@ -881,7 +913,9 @@ info!("replay: waiting up to 30s for retrace to consume and upload to S3...");
     let body: serde_json::Value = resp.json().await.unwrap_or_default();
     let sessions = body.as_array();
     if let Some(s) = sessions {
-        if s.iter().any(|sess| sess["sessionId"] == "e2e-replay-session-001") {
+        if s.iter()
+            .any(|sess| sess["sessionId"] == "e2e-replay-session-001")
+        {
             pass!("replay: session listed in query service");
         } else {
             fail!("replay: session not found in query response: {:?}", body);
@@ -1566,10 +1600,26 @@ pub(crate) async fn scenario_missing_chunks() -> Result<()> {
     for _ in 0..25 {
         let cc = crate::helpers::docker_exec(
             PG_CONTAINER,
-            &["psql", "-U", "opsbucket", "-d", "opsbucket", "-t", "-A", "-c",
-              &format!("SELECT count(*) FROM replay_chunks WHERE session_id='{}'", session_id)],
-        ).unwrap_or_default();
-        if cc.trim() == "2" { chunks_stored = true; break; }
+            &[
+                "psql",
+                "-U",
+                "opsbucket",
+                "-d",
+                "opsbucket",
+                "-t",
+                "-A",
+                "-c",
+                &format!(
+                    "SELECT count(*) FROM replay_chunks WHERE session_id='{}'",
+                    session_id
+                ),
+            ],
+        )
+        .unwrap_or_default();
+        if cc.trim() == "2" {
+            chunks_stored = true;
+            break;
+        }
         sleep(Duration::from_secs(1)).await;
     }
 
@@ -1633,10 +1683,26 @@ pub(crate) async fn scenario_multiple_sessions_same_distinct_id() -> Result<()> 
     for _ in 0..25 {
         let c = crate::helpers::docker_exec(
             PG_CONTAINER,
-            &["psql", "-U", "opsbucket", "-d", "opsbucket", "-t", "-A", "-c",
-              &format!("SELECT count(*) FROM replay_sessions WHERE distinct_id='{}'", distinct_id)]
-        ).unwrap_or_default();
-        if c.trim() == "2" { sessions_found = true; break; }
+            &[
+                "psql",
+                "-U",
+                "opsbucket",
+                "-d",
+                "opsbucket",
+                "-t",
+                "-A",
+                "-c",
+                &format!(
+                    "SELECT count(*) FROM replay_sessions WHERE distinct_id='{}'",
+                    distinct_id
+                ),
+            ],
+        )
+        .unwrap_or_default();
+        if c.trim() == "2" {
+            sessions_found = true;
+            break;
+        }
         sleep(Duration::from_secs(1)).await;
     }
     if sessions_found {
@@ -1658,11 +1724,20 @@ pub(crate) async fn scenario_multiple_sessions_same_distinct_id() -> Result<()> 
     let body: serde_json::Value = resp.json().await.unwrap_or_default();
     let sessions = body.as_array();
     if let Some(s) = sessions {
-        let matching: Vec<_> = s.iter().filter(|sess| sess["sessionId"].as_str() == Some("e2e-ms-sid-a") || sess["sessionId"].as_str() == Some("e2e-ms-sid-b")).collect();
+        let matching: Vec<_> = s
+            .iter()
+            .filter(|sess| {
+                sess["sessionId"].as_str() == Some("e2e-ms-sid-a")
+                    || sess["sessionId"].as_str() == Some("e2e-ms-sid-b")
+            })
+            .collect();
         if matching.len() == 2 {
             pass!("edge32: both sessions returned by query API for same distinct_id");
         } else {
-            fail!("edge32: expected 2 sessions in query, got {}", matching.len());
+            fail!(
+                "edge32: expected 2 sessions in query, got {}",
+                matching.len()
+            );
         }
     }
 
@@ -1695,10 +1770,26 @@ pub(crate) async fn scenario_consumer_crash_recovery() -> Result<()> {
     for _ in 0..30 {
         let c = crate::helpers::docker_exec(
             PG_CONTAINER,
-            &["psql", "-U", "opsbucket", "-d", "opsbucket", "-t", "-A", "-c",
-              &format!("SELECT count(*) FROM replay_chunks WHERE session_id='{}'", session_id)]
-        ).unwrap_or_default();
-        if c.trim() == "1" { before_stored = true; break; }
+            &[
+                "psql",
+                "-U",
+                "opsbucket",
+                "-d",
+                "opsbucket",
+                "-t",
+                "-A",
+                "-c",
+                &format!(
+                    "SELECT count(*) FROM replay_chunks WHERE session_id='{}'",
+                    session_id
+                ),
+            ],
+        )
+        .unwrap_or_default();
+        if c.trim() == "1" {
+            before_stored = true;
+            break;
+        }
         sleep(Duration::from_secs(1)).await;
     }
     if before_stored {
@@ -1727,10 +1818,26 @@ pub(crate) async fn scenario_consumer_crash_recovery() -> Result<()> {
     for _ in 0..25 {
         let c = crate::helpers::docker_exec(
             PG_CONTAINER,
-            &["psql", "-U", "opsbucket", "-d", "opsbucket", "-t", "-A", "-c",
-              &format!("SELECT count(*) FROM replay_chunks WHERE session_id='{}'", session_id)]
-        ).unwrap_or_default();
-        if c.trim() == "2" { total_stored = true; break; }
+            &[
+                "psql",
+                "-U",
+                "opsbucket",
+                "-d",
+                "opsbucket",
+                "-t",
+                "-A",
+                "-c",
+                &format!(
+                    "SELECT count(*) FROM replay_chunks WHERE session_id='{}'",
+                    session_id
+                ),
+            ],
+        )
+        .unwrap_or_default();
+        if c.trim() == "2" {
+            total_stored = true;
+            break;
+        }
         sleep(Duration::from_secs(1)).await;
     }
     if total_stored {
@@ -1768,10 +1875,23 @@ pub(crate) async fn scenario_consumer_rebalance() -> Result<()> {
     for _ in 0..25 {
         let c = crate::helpers::docker_exec(
             PG_CONTAINER,
-            &["psql", "-U", "opsbucket", "-d", "opsbucket", "-t", "-A", "-c",
-              "SELECT count(*) FROM replay_sessions WHERE session_id LIKE 'e2e-rebalance-sid-%'"]
-        ).unwrap_or_default();
-        if c.trim() == "5" { all_found = true; break; }
+            &[
+                "psql",
+                "-U",
+                "opsbucket",
+                "-d",
+                "opsbucket",
+                "-t",
+                "-A",
+                "-c",
+                "SELECT count(*) FROM replay_sessions WHERE session_id LIKE 'e2e-rebalance-sid-%'",
+            ],
+        )
+        .unwrap_or_default();
+        if c.trim() == "5" {
+            all_found = true;
+            break;
+        }
         sleep(Duration::from_secs(1)).await;
     }
     if all_found {
@@ -1788,8 +1908,13 @@ pub(crate) async fn scenario_consumer_rebalance() -> Result<()> {
 pub(crate) async fn scenario_pipeline_latency() -> Result<()> {
     info!("Edge Case 53: Pipeline Latency — timing from ingest to query");
 
-    let event_id = format!("e2e-latency-{:x}", std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH).unwrap().as_millis());
+    let event_id = format!(
+        "e2e-latency-{:x}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis()
+    );
     let ingest_start = std::time::Instant::now();
 
     let batch = json!({
@@ -1814,9 +1939,12 @@ pub(crate) async fn scenario_pipeline_latency() -> Result<()> {
     send_ingest(&batch).await;
 
     for _ in 0..TIMEOUT_SECS {
-        let found = ch_query(&format!("SELECT count() FROM events WHERE event_id='{}'", event_id))
-            .await
-            .unwrap_or_default();
+        let found = ch_query(&format!(
+            "SELECT count() FROM events WHERE event_id='{}'",
+            event_id
+        ))
+        .await
+        .unwrap_or_default();
         if found.trim() == "1" {
             let elapsed = ingest_start.elapsed();
             let secs = elapsed.as_secs_f64();
@@ -1891,10 +2019,13 @@ pub(crate) async fn scenario_service_restart() -> Result<()> {
     }
 
     for _ in 0..TIMEOUT_SECS {
-        let before_found = ch_query("SELECT count() FROM events WHERE event_id='e2e-restart-before'")
-            .await.unwrap_or_default();
+        let before_found =
+            ch_query("SELECT count() FROM events WHERE event_id='e2e-restart-before'")
+                .await
+                .unwrap_or_default();
         let after_found = ch_query("SELECT count() FROM events WHERE event_id='e2e-restart-after'")
-            .await.unwrap_or_default();
+            .await
+            .unwrap_or_default();
         if before_found.trim() == "1" && after_found.trim() == "1" {
             pass!("edge54: both events stored in ClickHouse despite restart");
             return Ok(());
@@ -1939,7 +2070,8 @@ pub(crate) async fn scenario_infrastructure_failure() -> Result<()> {
 
     for _ in 0..TIMEOUT_SECS {
         let count = ch_query("SELECT count() FROM events WHERE event_id='e2e-infra-fail'")
-            .await.unwrap_or_default();
+            .await
+            .unwrap_or_default();
         if count.trim() == "1" {
             pass!("edge55: event persisted despite potential infra blips");
             return Ok(());
@@ -1992,22 +2124,34 @@ pub(crate) async fn scenario_cross_tenant_access() -> Result<()> {
 
     for _ in 0..TIMEOUT_SECS {
         let found = ch_query("SELECT count() FROM events WHERE event_id='e2e-cross-tenant'")
-            .await.unwrap_or_default();
+            .await
+            .unwrap_or_default();
         if found.trim() == "1" {
             break;
         }
         sleep(Duration::from_secs(1)).await;
     }
 
-    let count_a = ch_query(&format!("SELECT count() FROM events WHERE project_id='{}' AND event_id='e2e-cross-tenant'", project_a))
-        .await.unwrap_or_default();
-    let count_b = ch_query(&format!("SELECT count() FROM events WHERE project_id='{}' AND event_id='e2e-cross-tenant'", project_b))
-        .await.unwrap_or_default();
+    let count_a = ch_query(&format!(
+        "SELECT count() FROM events WHERE project_id='{}' AND event_id='e2e-cross-tenant'",
+        project_a
+    ))
+    .await
+    .unwrap_or_default();
+    let count_b = ch_query(&format!(
+        "SELECT count() FROM events WHERE project_id='{}' AND event_id='e2e-cross-tenant'",
+        project_b
+    ))
+    .await
+    .unwrap_or_default();
 
     if count_a.trim() == "1" {
         pass!("edge56: event belongs to project_a (correct)");
     } else {
-        fail!("edge56: expected project_a count=1, got '{}'", count_a.trim());
+        fail!(
+            "edge56: expected project_a count=1, got '{}'",
+            count_a.trim()
+        );
     }
     if count_b.trim() == "0" {
         pass!("edge56: project_b cannot see project_a's event (isolation works)");
@@ -2017,12 +2161,18 @@ pub(crate) async fn scenario_cross_tenant_access() -> Result<()> {
 
     let client = reqwest::Client::new();
     let sessions_a = client
-        .get(&format!("http://{}:{}/v1/query/replay/sessions?projectId={}", HOST_LOOPBACK, QUERY_PORT, project_a))
+        .get(&format!(
+            "http://{}:{}/v1/query/replay/sessions?projectId={}",
+            HOST_LOOPBACK, QUERY_PORT, project_a
+        ))
         .header("Authorization", format!("Bearer {}", SECRET_KEY))
         .send()
         .await?;
     let sessions_b = client
-        .get(&format!("http://{}:{}/v1/query/replay/sessions?projectId={}", HOST_LOOPBACK, QUERY_PORT, project_b))
+        .get(&format!(
+            "http://{}:{}/v1/query/replay/sessions?projectId={}",
+            HOST_LOOPBACK, QUERY_PORT, project_b
+        ))
         .header("Authorization", format!("Bearer {}", SECRET_KEY))
         .send()
         .await?;

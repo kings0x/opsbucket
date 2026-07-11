@@ -44,7 +44,10 @@ mod tests {
 
         Router::new()
             .route("/v1/batch", axum::routing::post(super::batch::post_batch))
-            .route("/capture/replay", axum::routing::post(super::replay::post_replay))
+            .route(
+                "/capture/replay",
+                axum::routing::post(super::replay::post_replay),
+            )
             .route("/health", axum::routing::get(super::health::get_health))
             .layer(DefaultBodyLimit::max(1_048_576))
             .with_state(state)
@@ -394,7 +397,10 @@ mod tests {
         });
 
         let app = Router::new()
-            .route("/capture/replay", axum::routing::post(super::replay::post_replay))
+            .route(
+                "/capture/replay",
+                axum::routing::post(super::replay::post_replay),
+            )
             .layer(DefaultBodyLimit::max(1_048_576))
             .with_state(state);
 
@@ -633,5 +639,4 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::OK);
     }
-
 }

@@ -102,16 +102,18 @@ pub async fn list_sessions(
 
     let sessions = rows
         .into_iter()
-        .map(|(session_id, distinct_id, started_at, last_activity, chunk_count, status)| {
-            SessionSummary {
-                session_id,
-                distinct_id,
-                started_at,
-                last_activity,
-                chunk_count,
-                status,
-            }
-        })
+        .map(
+            |(session_id, distinct_id, started_at, last_activity, chunk_count, status)| {
+                SessionSummary {
+                    session_id,
+                    distinct_id,
+                    started_at,
+                    last_activity,
+                    chunk_count,
+                    status,
+                }
+            },
+        )
         .collect();
 
     Ok(Json(sessions))
@@ -635,8 +637,7 @@ mod tests {
 
     #[tokio::test]
     async fn check_auth_per_project_key_accepted() {
-        let store =
-            SecretKeyStore::mock_store("sk_admin", vec![("sk_proj_a", Some("proj_a"))]);
+        let store = SecretKeyStore::mock_store("sk_admin", vec![("sk_proj_a", Some("proj_a"))]);
         let headers = make_headers(Some("Bearer sk_proj_a"));
         let result = check_auth(&headers, &store, "proj_a").await;
         assert!(result.is_ok());
@@ -644,8 +645,7 @@ mod tests {
 
     #[tokio::test]
     async fn check_auth_per_project_key_rejected_for_different_project() {
-        let store =
-            SecretKeyStore::mock_store("sk_admin", vec![("sk_proj_a", Some("proj_a"))]);
+        let store = SecretKeyStore::mock_store("sk_admin", vec![("sk_proj_a", Some("proj_a"))]);
         let headers = make_headers(Some("Bearer sk_proj_a"));
         let result = check_auth(&headers, &store, "proj_b").await;
         assert!(result.is_err());
@@ -690,8 +690,7 @@ mod tests {
 
     #[tokio::test]
     async fn check_auth_project_isolation_via_key_scoping() {
-        let store =
-            SecretKeyStore::mock_store("sk_admin", vec![("sk_proj_a", Some("proj_a"))]);
+        let store = SecretKeyStore::mock_store("sk_admin", vec![("sk_proj_a", Some("proj_a"))]);
         let headers_a = make_headers(Some("Bearer sk_proj_a"));
         assert!(check_auth(&headers_a, &store, "proj_a").await.is_ok());
         assert!(check_auth(&headers_a, &store, "proj_b").await.is_err());

@@ -110,7 +110,8 @@ impl ReplayStore for PostgresStore {
 #[cfg(test)]
 pub struct MockReplayStore {
     pub sessions: std::sync::Mutex<Vec<(String, String, Option<String>, bool, i32)>>,
-    pub chunks: std::sync::Mutex<Vec<(String, String, String, u32, String, String, i32, i32, bool)>>,
+    pub chunks:
+        std::sync::Mutex<Vec<(String, String, String, u32, String, String, i32, i32, bool)>>,
     pub should_fail: bool,
 }
 
@@ -147,16 +148,13 @@ impl ReplayStore for MockReplayStore {
         if self.should_fail {
             anyhow::bail!("postgres upsert failed (mock)");
         }
-        self.sessions
-            .lock()
-            .unwrap()
-            .push((
-                project_id.to_string(),
-                session_id.to_string(),
-                distinct_id.map(|s| s.to_string()),
-                is_final,
-                chunk_count_delta,
-            ));
+        self.sessions.lock().unwrap().push((
+            project_id.to_string(),
+            session_id.to_string(),
+            distinct_id.map(|s| s.to_string()),
+            is_final,
+            chunk_count_delta,
+        ));
         Ok(())
     }
 
@@ -175,20 +173,17 @@ impl ReplayStore for MockReplayStore {
         if self.should_fail {
             anyhow::bail!("postgres insert failed (mock)");
         }
-        self.chunks
-            .lock()
-            .unwrap()
-            .push((
-                project_id.to_string(),
-                session_id.to_string(),
-                window_id.to_string(),
-                chunk_seq,
-                s3_key.to_string(),
-                s3_bucket.to_string(),
-                byte_size,
-                event_count,
-                is_final,
-            ));
+        self.chunks.lock().unwrap().push((
+            project_id.to_string(),
+            session_id.to_string(),
+            window_id.to_string(),
+            chunk_seq,
+            s3_key.to_string(),
+            s3_bucket.to_string(),
+            byte_size,
+            event_count,
+            is_final,
+        ));
         Ok(())
     }
 }

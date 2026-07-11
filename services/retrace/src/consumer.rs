@@ -339,8 +339,7 @@ mod tests {
 
     #[test]
     fn partial_json_fails_deserialization() {
-        let result =
-            serde_json::from_slice::<ReplayBatchEnvelope>(b"{\"projectId\":\"p\"}");
+        let result = serde_json::from_slice::<ReplayBatchEnvelope>(b"{\"projectId\":\"p\"}");
         assert!(result.is_err());
     }
 
@@ -354,14 +353,10 @@ mod tests {
         let payload = make_envelope_payload("sess-1", 0, false, 1, Some("user-1"));
 
         // First call — should succeed
-        simulate_process(&s3, &db, &buffer, &payload)
-            .await
-            .unwrap();
+        simulate_process(&s3, &db, &buffer, &payload).await.unwrap();
 
         // Second call with same (session_id, chunk_seq) — should be skipped
-        simulate_process(&s3, &db, &buffer, &payload)
-            .await
-            .unwrap();
+        simulate_process(&s3, &db, &buffer, &payload).await.unwrap();
 
         // S3 should have exactly one upload
         assert_eq!(s3.chunks.lock().unwrap().len(), 1);
@@ -461,9 +456,7 @@ mod tests {
         // 10 000 events in a single chunk
         let payload = make_envelope_payload("sess-1", 0, false, 10_000, Some("user-1"));
 
-        simulate_process(&s3, &db, &buffer, &payload)
-            .await
-            .unwrap();
+        simulate_process(&s3, &db, &buffer, &payload).await.unwrap();
 
         let chunks = s3.chunks.lock().unwrap();
         assert_eq!(chunks.len(), 1);
@@ -484,9 +477,7 @@ mod tests {
         let malicious = "'; DROP TABLE replay_sessions; --";
         let payload = make_envelope_payload(malicious, 0, false, 1, Some("user-1"));
 
-        simulate_process(&s3, &db, &buffer, &payload)
-            .await
-            .unwrap();
+        simulate_process(&s3, &db, &buffer, &payload).await.unwrap();
 
         // S3 key should contain the raw session_id
         let s3_chunks = s3.chunks.lock().unwrap();
@@ -509,9 +500,7 @@ mod tests {
         let session_id = "sess-@\u{1f600}\u{1f680}-emoji";
         let payload = make_envelope_payload(session_id, 0, false, 1, Some("user-1"));
 
-        simulate_process(&s3, &db, &buffer, &payload)
-            .await
-            .unwrap();
+        simulate_process(&s3, &db, &buffer, &payload).await.unwrap();
 
         let sessions = db.sessions.lock().unwrap();
         assert_eq!(sessions[0].1, session_id);
@@ -526,15 +515,13 @@ mod tests {
         let buffer = Mutex::new(SessionBuffer::new());
 
         // First chunk marks final
-        let final_payload =
-            make_envelope_payload("sess-final", 0, true, 1, Some("user-1"));
+        let final_payload = make_envelope_payload("sess-final", 0, true, 1, Some("user-1"));
         simulate_process(&s3, &db, &buffer, &final_payload)
             .await
             .unwrap();
 
         // Subsequent chunk with is_final=false
-        let non_final =
-            make_envelope_payload("sess-final", 1, false, 1, Some("user-1"));
+        let non_final = make_envelope_payload("sess-final", 1, false, 1, Some("user-1"));
         simulate_process(&s3, &db, &buffer, &non_final)
             .await
             .unwrap();
@@ -542,7 +529,7 @@ mod tests {
         // First session upsert should have is_final=true, second with is_final=false
         let sessions = db.sessions.lock().unwrap();
         assert_eq!(sessions.len(), 2);
-        assert!(sessions[0].3);  // first upsert: is_final = true
+        assert!(sessions[0].3); // first upsert: is_final = true
         assert!(!sessions[1].3); // second upsert: is_final = false
 
         // Session should have been evicted from buffer after final
@@ -562,11 +549,8 @@ mod tests {
 
         // Multiple chunks, none final
         for seq in 0..5 {
-            let payload =
-                make_envelope_payload("sess-active", seq, false, 1, Some("user-1"));
-            simulate_process(&s3, &db, &buffer, &payload)
-                .await
-                .unwrap();
+            let payload = make_envelope_payload("sess-active", seq, false, 1, Some("user-1"));
+            simulate_process(&s3, &db, &buffer, &payload).await.unwrap();
         }
 
         // All chunks should be in the buffer
@@ -592,17 +576,11 @@ mod tests {
         let db = MockReplayStore::new();
         let buffer = Mutex::new(SessionBuffer::new());
 
-        let payload =
-            make_envelope_payload("sess-overflow", u32::MAX, false, 1, Some("user-1"));
-        simulate_process(&s3, &db, &buffer, &payload)
-            .await
-            .unwrap();
+        let payload = make_envelope_payload("sess-overflow", u32::MAX, false, 1, Some("user-1"));
+        simulate_process(&s3, &db, &buffer, &payload).await.unwrap();
 
         // Buffer should track it
-        assert!(buffer
-            .lock()
-            .await
-            .is_duplicate("sess-overflow", u32::MAX));
+        assert!(buffer.lock().await.is_duplicate("sess-overflow", u32::MAX));
 
         // S3 key should contain the value
         let s3_chunks = s3.chunks.lock().unwrap();
@@ -619,21 +597,12 @@ mod tests {
         let db = MockReplayStore::new();
         let buffer = Mutex::new(SessionBuffer::new());
 
-        let payload = make_envelope_payload(
-            "sess-near-max",
-            u32::MAX - 1,
-            false,
-            1,
-            Some("user-1"),
-        );
-        simulate_process(&s3, &db, &buffer, &payload)
-            .await
-            .unwrap();
+        let payload =
+            make_envelope_payload("sess-near-max", u32::MAX - 1, false, 1, Some("user-1"));
+        simulate_process(&s3, &db, &buffer, &payload).await.unwrap();
 
         // Duplicate should be detected
-        simulate_process(&s3, &db, &buffer, &payload)
-            .await
-            .unwrap();
+        simulate_process(&s3, &db, &buffer, &payload).await.unwrap();
 
         assert_eq!(s3.chunks.lock().unwrap().len(), 1);
     }
@@ -643,8 +612,7 @@ mod tests {
     #[test]
     fn empty_events_vec_is_valid() {
         let payload = make_envelope_payload("sess-empty", 0, false, 0, Some("user-1"));
-        let envelope: ReplayBatchEnvelope =
-            serde_json::from_slice(&payload).unwrap();
+        let envelope: ReplayBatchEnvelope = serde_json::from_slice(&payload).unwrap();
         assert!(envelope.batch.events.is_empty());
     }
 
@@ -657,9 +625,7 @@ mod tests {
         let buffer = Mutex::new(SessionBuffer::new());
 
         let payload = make_envelope_payload("sess-1", 0, false, 1, None);
-        simulate_process(&s3, &db, &buffer, &payload)
-            .await
-            .unwrap();
+        simulate_process(&s3, &db, &buffer, &payload).await.unwrap();
 
         let sessions = db.sessions.lock().unwrap();
         assert_eq!(sessions.len(), 1);
@@ -672,11 +638,8 @@ mod tests {
         let db = MockReplayStore::new();
         let buffer = Mutex::new(SessionBuffer::new());
 
-        let payload =
-            make_envelope_payload("sess-1", 0, false, 1, Some(""));
-        simulate_process(&s3, &db, &buffer, &payload)
-            .await
-            .unwrap();
+        let payload = make_envelope_payload("sess-1", 0, false, 1, Some(""));
+        simulate_process(&s3, &db, &buffer, &payload).await.unwrap();
 
         let sessions = db.sessions.lock().unwrap();
         assert_eq!(sessions[0].2, Some("".to_string()));

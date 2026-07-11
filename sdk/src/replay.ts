@@ -209,7 +209,7 @@ export class Replay {
         await writer.close()
         const reader = cs.readable.getReader()
         const chunks: Uint8Array[] = []
-        while (true) {
+        for (;;) {
           const { done, value } = await reader.read()
           if (done) break
           chunks.push(value)

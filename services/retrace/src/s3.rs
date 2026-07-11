@@ -25,9 +25,7 @@ impl S3Store {
         secret_key: &str,
         bucket: &str,
     ) -> Result<Self> {
-        let client = Client::builder()
-            .timeout(Duration::from_secs(30))
-            .build()?;
+        let client = Client::builder().timeout(Duration::from_secs(30)).build()?;
 
         let store = Self {
             client,
@@ -60,7 +58,13 @@ impl S3Store {
         let signed_headers = "host;x-amz-content-sha256;x-amz-date";
         let canonical_request = format!(
             "PUT\n/{}/{}\n\nhost:{}\nx-amz-content-sha256:{}\nx-amz-date:{}\n\n{}\n{}",
-            self.bucket, key, self.host(), body_hash, amz_date, signed_headers, body_hash
+            self.bucket,
+            key,
+            self.host(),
+            body_hash,
+            amz_date,
+            signed_headers,
+            body_hash
         );
 
         let algorithm = "AWS4-HMAC-SHA256";
@@ -122,7 +126,10 @@ impl S3Store {
             .client
             .put(&url)
             .header("x-amz-content-sha256", sha256_hex(b""))
-            .header("x-amz-date", Utc::now().format("%Y%m%dT%H%M%SZ").to_string())
+            .header(
+                "x-amz-date",
+                Utc::now().format("%Y%m%dT%H%M%SZ").to_string(),
+            )
             .body("")
             .send()
             .await?;
@@ -130,7 +137,11 @@ impl S3Store {
         if !put_resp.status().is_success() && put_resp.status().as_u16() != 409 {
             let status = put_resp.status();
             let body = put_resp.text().await.unwrap_or_default();
-            anyhow::bail!("s3 bucket creation failed: status={}, body={}", status, body);
+            anyhow::bail!(
+                "s3 bucket creation failed: status={}, body={}",
+                status,
+                body
+            );
         }
 
         Ok(())
@@ -198,15 +209,12 @@ impl MockS3Store {
             anyhow::bail!("s3 upload failed (mock)");
         }
         let key = format!("replay/{}/{}/{}.json", project_id, session_id, chunk_seq);
-        self.chunks
-            .lock()
-            .unwrap()
-            .push((
-                project_id.to_string(),
-                session_id.to_string(),
-                chunk_seq,
-                data.to_vec(),
-            ));
+        self.chunks.lock().unwrap().push((
+            project_id.to_string(),
+            session_id.to_string(),
+            chunk_seq,
+            data.to_vec(),
+        ));
         Ok(key)
     }
 }

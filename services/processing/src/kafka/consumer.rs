@@ -156,10 +156,6 @@ impl ProcessingConsumer {
                     }
                 }
                 Ok(Err(_)) => {
-                    if messages.is_empty() {
-                        //TODO: they can be an offset commit here before returning
-                        return Ok(false);
-                    }
                     break;
                 }
                 Err(_) => {
