@@ -3,10 +3,10 @@ name: Dashboard
 on:
   pull_request:
     branches: [develop, main]
-    paths: ['services/dashboard/**', 'services/shared/**']
+    paths: ['services/dashboard/**', 'services/shared/**', '.github/workflows/dashboard.yml']
   push:
     branches: [develop]
-    paths: ['services/dashboard/**', 'services/shared/**']
+    paths: ['services/dashboard/**', 'services/shared/**', '.github/workflows/dashboard.yml']
   release:
     types: [published]
 
@@ -16,6 +16,9 @@ jobs:
     defaults:
       run:
         working-directory: services
+    env:
+      DATABASE_URL: postgres://opsbucket:opsbucket@127.0.0.1:5432/opsbucket
+      REDIS_URL: redis://127.0.0.1:6379
     steps:
       - uses: actions/checkout@v4
 
@@ -48,6 +51,12 @@ jobs:
 
       - name: Start infrastructure (Postgres, Redis)
         run: docker compose -f ../infra/docker-compose.yml up -d postgres redis
+      - name: Wait for Postgres
+        run: |
+          for i in $(seq 1 30); do
+            docker compose -f ../infra/docker-compose.yml exec -T postgres pg_isready -U opsbucket && break
+            sleep 2
+          done
       - name: Run Postgres migrations
         run: cargo run -p opsbucket-migrator -- up
       - run: cargo build -p opsbucket-dashboard

@@ -14,6 +14,10 @@ jobs:
     defaults:
       run:
         working-directory: services
+    env:
+      DATABASE_URL: postgres://opsbucket:opsbucket@127.0.0.1:5432/opsbucket
+      REDIS_URL: redis://127.0.0.1:6379
+      KAFKA_BROKERS: 127.0.0.1:9092
     steps:
       - uses: actions/checkout@v4
       - name: Install system dependencies for librdkafka
@@ -21,10 +25,22 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
-      - name: Start infrastructure (Postgres, Redis, Redpanda)
+      - name: Start infrastructure (Postgres, Redis, Redpanda, ClickHouse)
         run: docker compose -f ../infra/docker-compose.yml up -d postgres redis redpanda clickhouse
+      - name: Wait for Postgres
+        run: |
+          for i in $(seq 1 30); do
+            docker compose -f ../infra/docker-compose.yml exec -T postgres pg_isready -U opsbucket && break
+            sleep 2
+          done
       - name: Run Postgres migrations
         run: cargo run -p opsbucket-migrator -- up
+      - name: Create Kafka topics
+        run: |
+          docker compose -f ../infra/docker-compose.yml exec -T redpanda rpk topic create raw-events --partitions 12 2>/dev/null || true
+          docker compose -f ../infra/docker-compose.yml exec -T redpanda rpk topic create raw-events-dlq --partitions 1 2>/dev/null || true
+          docker compose -f ../infra/docker-compose.yml exec -T redpanda rpk topic create replay_events --partitions 6 2>/dev/null || true
+          docker compose -f ../infra/docker-compose.yml exec -T redpanda rpk topic create replay_events-dlq --partitions 1 2>/dev/null || true
       - run: cargo build -p opsbucket-processing
       - run: cargo clippy -p opsbucket-processing -- -D warnings
       - run: cargo fmt --check

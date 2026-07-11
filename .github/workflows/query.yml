@@ -3,10 +3,10 @@ name: Query
 on:
   pull_request:
     branches: [develop, main]
-    paths: ['services/query/**', 'services/shared/**']
+    paths: ['services/query/**', 'services/shared/**', '.github/workflows/query.yml']
   push:
     branches: [develop]
-    paths: ['services/query/**', 'services/shared/**']
+    paths: ['services/query/**', 'services/shared/**', '.github/workflows/query.yml']
 
 jobs:
   lint-test:
@@ -14,6 +14,10 @@ jobs:
     defaults:
       run:
         working-directory: services
+    env:
+      DATABASE_URL: postgres://opsbucket:opsbucket@127.0.0.1:5432/opsbucket
+      REDIS_URL: redis://127.0.0.1:6379
+      CLICKHOUSE_URL: http://127.0.0.1:8123
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -21,12 +25,20 @@ jobs:
           components: clippy, rustfmt
       - name: Start infrastructure (ClickHouse, Postgres, Redis)
         run: docker compose -f ../infra/docker-compose.yml up -d clickhouse postgres redis
+      - name: Wait for Postgres
+        run: |
+          for i in $(seq 1 30); do
+            docker compose -f ../infra/docker-compose.yml exec -T postgres pg_isready -U opsbucket && break
+            sleep 2
+          done
       - name: Run Postgres migrations
         run: cargo run -p opsbucket-migrator -- up
       - name: Apply ClickHouse schema
         run: |
-          echo "Waiting for ClickHouse..."
-          sleep 5
+          for i in $(seq 1 30); do
+            docker compose -f ../infra/docker-compose.yml exec -T clickhouse clickhouse-client --query 'SELECT 1' 2>/dev/null && break
+            sleep 2
+          done
           docker compose -f ../infra/docker-compose.yml exec -T clickhouse \
             clickhouse-client --multiquery < ../infra/clickhouse/schema.sql
       - run: cargo build -p opsbucket-query
