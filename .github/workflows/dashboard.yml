@@ -62,7 +62,7 @@ jobs:
       - run: cargo build -p opsbucket-dashboard
       - run: cargo clippy -p opsbucket-dashboard -- -D warnings
       - run: cargo fmt --check
-      - run: cargo test -p opsbucket-dashboard
+      - run: cargo test -p opsbucket-dashboard -- --test-threads=1
 
   docker:
     if: github.event_name == 'release'

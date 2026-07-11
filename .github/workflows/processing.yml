@@ -44,4 +44,4 @@ jobs:
       - run: cargo build -p opsbucket-processing
       - run: cargo clippy -p opsbucket-processing -- -D warnings
       - run: cargo fmt --check
-      - run: cargo test -p opsbucket-processing
+      - run: cargo test -p opsbucket-processing -- --test-threads=1
