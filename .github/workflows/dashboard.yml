@@ -46,6 +46,10 @@ jobs:
             libsasl2-dev \
             pkg-config
 
+      - name: Start infrastructure (Postgres, Redis)
+        run: docker compose -f ../infra/docker-compose.yml up -d postgres redis
+      - name: Run Postgres migrations
+        run: cargo run -p opsbucket-migrator -- up
       - run: cargo build -p opsbucket-dashboard
       - run: cargo clippy -p opsbucket-dashboard -- -D warnings
       - run: cargo fmt --check

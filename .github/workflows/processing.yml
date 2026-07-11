@@ -21,6 +21,10 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
+      - name: Start infrastructure (Postgres, Redis, Redpanda)
+        run: docker compose -f ../infra/docker-compose.yml up -d postgres redis redpanda clickhouse
+      - name: Run Postgres migrations
+        run: cargo run -p opsbucket-migrator -- up
       - run: cargo build -p opsbucket-processing
       - run: cargo clippy -p opsbucket-processing -- -D warnings
       - run: cargo fmt --check

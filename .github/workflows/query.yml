@@ -19,6 +19,16 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
+      - name: Start infrastructure (ClickHouse, Postgres, Redis)
+        run: docker compose -f ../infra/docker-compose.yml up -d clickhouse postgres redis
+      - name: Run Postgres migrations
+        run: cargo run -p opsbucket-migrator -- up
+      - name: Apply ClickHouse schema
+        run: |
+          echo "Waiting for ClickHouse..."
+          sleep 5
+          docker compose -f ../infra/docker-compose.yml exec -T clickhouse \
+            clickhouse-client --multiquery < ../infra/clickhouse/schema.sql
       - run: cargo build -p opsbucket-query
       - run: cargo clippy -p opsbucket-query -- -D warnings
       - run: cargo fmt --check
